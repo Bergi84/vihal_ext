@@ -36,7 +36,7 @@ public:
 #ifndef HWRTC_H_
 #define HWRTC_H_
 
-#include "mcu_impl.h"
+#include "mcu_impl_ext.h"
 
 class THwRtc : public HWRTC_IMPL
 {

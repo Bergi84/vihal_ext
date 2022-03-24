@@ -19,7 +19,6 @@ public:
   uint16_t syncDiv;
   uint16_t wakeUpMaxMsec;
 
-public:
   bool init();
   bool setTime(time_t atime, time_t &rtime); // returns the last time value before set time to new value
   bool getTime(time_t &atime);
