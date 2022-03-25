@@ -12,6 +12,11 @@
 
 #if defined(MCUSF_WB)
 
+  bool init()
+  {
+
+  }
+
 
 #endif // defined(MCUSF_WB)
 
