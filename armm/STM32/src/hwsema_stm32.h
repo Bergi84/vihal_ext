@@ -14,15 +14,20 @@
 class THwSema_stm32 : public THwSema_pre
 {
 public:
-  constexpr uint8_t coreID = HSEM_CR_COREID_CURRENT;
-  constexpr uint8_t invalidProcID = -1;
+  static constexpr uint8_t coreID = HSEM_CR_COREID_CURRENT;
+  static constexpr uint8_t invalidProcID = -1;
 
   HSEM_TypeDef* regs;
 
-  bool init();
+  bool init(HSEM_TypeDef* pHsem)
+  {
+    regs = pHsem;
+    RCC->AHB3ENR |= RCC_AHB3ENR_HSEMEN;
+    return true;
+  }
 
   // returns true if lock is successful
-  bool lock(uint8_t semaID, uint8_t procID = invalidProcID)
+  inline bool lock(uint8_t semaID, uint8_t procID = invalidProcID)
   {
     if(procID == invalidProcID)
     {
@@ -37,7 +42,7 @@ public:
     }
   }
 
-  bool release(uint8_t semaID, uint8_t procID = invalidProcID)
+  inline bool release(uint8_t semaID, uint8_t procID = invalidProcID)
   {
     if(procID == invalidProcID)
     {
@@ -64,7 +69,7 @@ public:
 
   inline bool getProcessID(uint8_t semaID, uint8_t &procID)
   {
-    coreID = (regs->R[semaID] & HSEM_R_PROCID) >> HSEM_R_PROCID_Pos;
+    procID = (regs->R[semaID] & HSEM_R_PROCID) >> HSEM_R_PROCID_Pos;
     return true;
   }
 };
