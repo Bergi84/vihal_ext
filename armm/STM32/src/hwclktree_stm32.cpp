@@ -178,6 +178,8 @@ void THwClkTree_stm32::updateClkTree()
   {
     rtcSource = RTC_LSI2;
   }
+  rfwuSource = static_cast<rfwuSource_t>((tmp & RCC_CSR_RFWKPSEL) >> RCC_CSR_RFWKPSEL_Pos);
+
 }
 
 bool THwClkTree_stm32::setRtcClkSource(rtcSource_t aClkSource)
@@ -243,27 +245,7 @@ bool THwClkTree_stm32::setRtcClkSource(rtcSource_t aClkSource)
   switch (aClkSource)
   {
   case RTC_LSE:
-    tmp = PWR->CR1;
-    // enable backup domain access
-    if (!(tmp & PWR_CR1_DBP))
-    {
-      tmp |= PWR_CR1_DBP;
-      PWR->CR1 = tmp;
-      // wait for backup domain access
-      while(!(PWR->CR1 & PWR_CR1_DBP));
-    }
-
-    // enable LSE and set drive strange to low
-    tmp = regs->BDCR;
-    if(!(tmp & RCC_BDCR_LSERDY) || (tmp & RCC_BDCR_LSEDRV))
-    {
-      tmp &= ~RCC_BDCR_LSEDRV;
-      tmp |= RCC_BDCR_LSEON;
-      regs->BDCR = tmp;
-
-      // wait until LSE is ready
-      while (!(regs->BDCR & RCC_BDCR_LSERDY));
-    }
+    enableLSE();
     break;
 
   case RTC_LSI1:
@@ -313,8 +295,7 @@ bool THwClkTree_stm32::setSysClkSource(sysSource_t aClkSource)
     enableMSI();
     break;
   case SYS_PLLRCLK:
-    enableMainPll();
-    enableMainPllR();
+    enableMainPll(pllOutR);
     break;
   }
 
@@ -357,19 +338,16 @@ bool THwClkTree_stm32::setSysStopClkSource(sysSource_t aClkSource)
 
 bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
 {
-  uint32_t tmp1 = regs->PLLCFGR;
-
   uint32_t srcConf = (uint32_t) aClkSource << RCC_PLLCFGR_PLLSRC_Pos;
   srcConf |= (preDiv - 1) << RCC_PLLCFGR_PLLM_Pos;
 
   bool pllIsOn;
   bool pllIsSysClk;
 
-  if((tmp1 & (RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM)) != srcConf)
+  if((regs->PLLCFGR & (RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM)) != srcConf)
   {
     // check if pll is on
-    uint32_t tmp2 = regs->CR;
-    pllIsOn = tmp2 & RCC_CR_PLLON;
+    pllIsOn = regs->CR & RCC_CR_PLLON;
     if(pllIsOn)
     {
       // pll is on, check if pll is used as sys clk source
@@ -381,15 +359,13 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
       }
 
       // disable pll
-      tmp2 &= ~RCC_CR_PLLON;
-      regs->CR = tmp2;
-
-      while(regs->CR & RCC_CR_PLLRDY);
+      disableMainPll();
     }
 
-    tmp1 &= ~(RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM);
-    tmp1 |= srcConf;
-    regs->PLLCFGR = tmp1;
+    uint32_t tmp = regs->PLLCFGR;
+    tmp &= ~(RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM);
+    tmp |= srcConf;
+    regs->PLLCFGR = tmp;
 
     if(pllIsOn)
     {
@@ -405,21 +381,18 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
 
 bool THwClkTree_stm32::confPllMain(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uint8_t qDiv)
 {
-  uint32_t tmp1 = regs->PLLCFGR;
-
   uint32_t conf = (uint32_t)nMul << RCC_PLLCFGR_PLLN_Pos;
-  conf = (uint32_t)pDiv << RCC_PLLCFGR_PLLP_Pos;
-  conf = (uint32_t)rDiv << RCC_PLLCFGR_PLLR_Pos;
-  conf = (uint32_t)qDiv << RCC_PLLCFGR_PLLQ_Pos;
+  conf |= (uint32_t)pDiv << RCC_PLLCFGR_PLLP_Pos;
+  conf |= (uint32_t)rDiv << RCC_PLLCFGR_PLLR_Pos;
+  conf |= (uint32_t)qDiv << RCC_PLLCFGR_PLLQ_Pos;
 
   bool pllIsOn;
   bool pllIsSysClk;
 
-  if((tmp1 & (RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLR | RCC_PLLCFGR_PLLQ | RCC_PLLCFGR_PLLP)) != conf )
+  if((regs->PLLCFGR & (RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLR | RCC_PLLCFGR_PLLQ | RCC_PLLCFGR_PLLP)) != conf )
   {
     // check if pll is on
-    uint32_t tmp2 = regs->CR;
-    pllIsOn = tmp2 & RCC_CR_PLLON;
+    pllIsOn = regs->CR & RCC_CR_PLLON;
     if(pllIsOn)
     {
       // pll is on, check if pll is used as sys clk source
@@ -430,16 +403,13 @@ bool THwClkTree_stm32::confPllMain(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uin
         setSysClkSource(SYS_HSI16);
       }
 
-      // disable pll
-      tmp2 &= ~RCC_CR_PLLON;
-      regs->CR = tmp2;
-
-      while(regs->CR & RCC_CR_PLLRDY);
+      disableMainPll();
     }
 
-    tmp1 &= ~(RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLR | RCC_PLLCFGR_PLLQ | RCC_PLLCFGR_PLLP);
-    tmp1 |= conf;
-    regs->PLLCFGR = tmp1;
+    uint32_t tmp = regs->PLLCFGR;
+    tmp &= ~(RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLR | RCC_PLLCFGR_PLLQ | RCC_PLLCFGR_PLLP);
+    tmp |= conf;
+    regs->PLLCFGR = tmp;
 
     if(pllIsOn)
     {
@@ -455,32 +425,26 @@ bool THwClkTree_stm32::confPllMain(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uin
 
 bool THwClkTree_stm32::confPllSai(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uint8_t qDiv)
 {
-  uint32_t tmp1 = regs->PLLSAI1CFGR;
-
   uint32_t conf = (uint32_t)nMul << RCC_PLLSAI1CFGR_PLLN_Pos;
-  conf = (uint32_t)pDiv << RCC_PLLSAI1CFGR_PLLP_Pos;
-  conf = (uint32_t)rDiv << RCC_PLLSAI1CFGR_PLLR_Pos;
-  conf = (uint32_t)qDiv << RCC_PLLSAI1CFGR_PLLQ_Pos;
+  conf |= (uint32_t)pDiv << RCC_PLLSAI1CFGR_PLLP_Pos;
+  conf |= (uint32_t)rDiv << RCC_PLLSAI1CFGR_PLLR_Pos;
+  conf |= (uint32_t)qDiv << RCC_PLLSAI1CFGR_PLLQ_Pos;
 
   bool pllIsOn;
 
-  if((tmp1 & (RCC_PLLSAI1CFGR_PLLN | RCC_PLLSAI1CFGR_PLLR | RCC_PLLSAI1CFGR_PLLQ | RCC_PLLSAI1CFGR_PLLP)) != conf )
+  if((regs->PLLSAI1CFGR & (RCC_PLLSAI1CFGR_PLLN | RCC_PLLSAI1CFGR_PLLR | RCC_PLLSAI1CFGR_PLLQ | RCC_PLLSAI1CFGR_PLLP)) != conf )
   {
     // check if pll is on
-    uint32_t tmp2 = regs->CR;
-    pllIsOn = tmp2 & RCC_CR_PLLSAI1ON;
+    pllIsOn = regs->CR & RCC_CR_PLLSAI1ON;
     if(pllIsOn)
     {
-      // disable pll
-      tmp2 &= ~RCC_CR_PLLSAI1ON;
-      regs->CR = tmp2;
-
-      while(regs->CR & RCC_CR_PLLSAI1RDY);
+      disableSai1Pll();
     }
 
-    tmp1 &= ~(RCC_PLLSAI1CFGR_PLLN | RCC_PLLSAI1CFGR_PLLR | RCC_PLLSAI1CFGR_PLLQ | RCC_PLLSAI1CFGR_PLLP);
-    tmp1 |= conf;
-    regs->PLLSAI1CFGR = tmp1;
+    uint32_t tmp = regs->PLLSAI1CFGR;
+    tmp &= ~(RCC_PLLSAI1CFGR_PLLN | RCC_PLLSAI1CFGR_PLLR | RCC_PLLSAI1CFGR_PLLQ | RCC_PLLSAI1CFGR_PLLP);
+    tmp |= conf;
+    regs->PLLSAI1CFGR = tmp;
 
     if(pllIsOn)
     {
@@ -508,9 +472,9 @@ bool THwClkTree_stm32::setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz)
   uint32_t tmp = regs->SMPSCR;
   tmp &= ~(RCC_SMPSCR_SMPSDIV | RCC_SMPSCR_SMPSSEL);
   if(fourMhz)
-    tmp |= aClkSource << RCC_SMPSCR_SMPSDIV;
+    tmp |= aClkSource << RCC_SMPSCR_SMPSDIV_Pos;
   else
-    tmp |= (aClkSource << RCC_SMPSCR_SMPSDIV) | RCC_SMPSCR_SMPSDIV_0;
+    tmp |= (aClkSource << RCC_SMPSCR_SMPSDIV_Pos) | RCC_SMPSCR_SMPSDIV_0;
   regs->SMPSCR = tmp;
 
   return true;
@@ -544,27 +508,17 @@ bool THwClkTree_stm32::hseCapTune(uint32_t capVal)
       } else {
         uint32_t tmp3 = regs->PLLCFGR;
 
-        pllHseIsSysClk = (sws == (uint32_t)SYS_PLLRCLK) && ((tmp3 & RCC_PLLCFGR_PLLSRC) == (uint32_t)PLL_HSE << RCC_PLLCFGR_PLLSRC_Pos));
+        pllHseIsSysClk = (sws == (uint32_t)SYS_PLLRCLK) && ((tmp3 & RCC_PLLCFGR_PLLSRC) == (uint32_t)PLL_HSE << RCC_PLLCFGR_PLLSRC_Pos);
         if(pllHseIsSysClk)
         {
           // HSE is source of pll and pll is source of system clock
           // switch system clock to hsi16
           setSysClkSource(SYS_HSI16);
-
-          // disable PLL
-          tmp2 &= ~RCC_CR_PLLON;
-          regs->CR = tmp2;
-
-          while(tmp2 & RCC_CR_PLLRDY)
-            tmp2 = regs->CR;
+          disableMainPll();
         }
       }
 
-      // disable HSE
-      tmp2 &= ~RCC_CR_HSEON;
-      regs->CR = tmp2;
-      while(tmp2 & RCC_CR_HSERDY)
-        tmp2 = regs->CR;
+      disableHSE();
     }
 
     tmp &= ~RCC_HSECR_HSETUNE;
@@ -590,6 +544,396 @@ bool THwClkTree_stm32::hseCapTune(uint32_t capVal)
       setSysClkSource(SYS_PLLRCLK);
     }
   }
+  return true;
+}
+
+bool THwClkTree_stm32::disableUnusedClk()
+{
+  updateClkTree();
+  bool hseUsed = false;
+  bool hsi16Used = false;
+  bool msiUsed = false;
+  bool mainPllPUsed = false;
+  bool mainPllQUsed = false;
+  bool mainPllRUsed = false;
+  bool sai1PllPUsed = false;
+  bool sai1PllQUsed = false;
+  bool sai1PllRUsed = false;
+  bool hsi48Used = false;
+  bool lseUsed = false;
+
+  if(regs->BDCR & RCC_BDCR_RTCEN)
+  {
+    switch(rtcSource)
+    {
+    case RTC_HSE:
+      hseUsed = true;
+      break;
+    case RTC_LSE:
+      lseUsed = true;
+      break;
+    case RTC_LSI1:
+      break;
+    case RTC_LSI2:
+       break;
+    case RTC_OFF:
+      break;
+    }
+  }
+
+  switch(clkOutSource)
+  {
+  case OUT_HSE:
+    hseUsed = true;
+    break;
+  case OUT_HSI16:
+    hsi16Used = true;
+    break;
+  case OUT_HSI48:
+    hsi48Used = true;
+    break;
+  case OUT_LSE:
+    lseUsed = true;
+    break;
+  case OUT_LSI1:
+    break;
+  case OUT_LSI2:
+    break;
+  case OUT_MSI:
+    msiUsed = true;
+    break;
+  case OUT_PLLRCLK:
+    mainPllRUsed = true;
+    break;
+  case OUT_SYSCLK:
+    break;
+  case OUT_OFF:
+    break;
+  }
+
+  switch(sysSource)
+  {
+  case SYS_HSE:
+    hseUsed = true;
+    break;
+  case SYS_HSI16:
+    hsi16Used = true;
+    break;
+  case SYS_MSI:
+    msiUsed = true;
+    break;
+  case SYS_PLLRCLK:
+    mainPllRUsed = true;
+    break;
+  }
+
+  switch(sysStopSource)
+  {
+  case SYS_HSI16:
+    hsi16Used = true;
+    break;
+  case SYS_MSI:
+    msiUsed = true;
+    break;
+  }
+
+  switch(smpsSource)
+  {
+  case SMPS_HSE:
+    hseUsed = true;
+    break;
+  case SMPS_HSI16:
+    hsi16Used = true;
+    break;
+  case SMPS_MSI:
+    msiUsed = true;
+    break;
+  case SMPS_OFF:
+    break;
+  }
+
+  switch(hclk5Source)
+  {
+  case HCLK5_HSE:
+    hseUsed = true;
+    break;
+  case HCLK5_HSI16:
+    hsi16Used = true;
+    break;
+  }
+
+  switch(rfwuSource)
+  {
+  case RFWU_HSE:
+    hseUsed = true;
+    break;
+  case RFWU_LSE:
+    lseUsed = true;
+    break;
+  case RFWU_OFF:
+    break;
+  }
+
+  uint32_t tmpAPB1_1 = regs->APB1ENR1;
+
+  if(tmpAPB1_1 & RCC_APB1ENR1_I2C1EN)
+  {
+    switch(i2c1Source)
+    {
+    case I2C_HSI16:
+      hsi16Used = true;
+      break;
+    case I2C_PCLK:
+      break;
+    case I2C_SYSCLK:
+      break;
+    }
+  }
+
+  if(tmpAPB1_1 & RCC_APB1ENR1_I2C3EN)
+  {
+    switch(i2c3Source)
+    {
+    case I2C_HSI16:
+      hsi16Used = true;
+      break;
+    case I2C_PCLK:
+      break;
+    case I2C_SYSCLK:
+      break;
+    }
+  }
+
+  if(tmpAPB1_1 & RCC_APB1ENR1_LPTIM1EN)
+  {
+    switch(lptim1Source)
+    {
+    case LPTIM_HSI16:
+      hsi16Used = true;
+      break;
+    case LPTIM_LSE:
+      lseUsed = true;
+      break;
+    case LPTIM_LSI:
+      break;
+    case LPTIM_PCLK:
+      break;
+    }
+  }
+
+  uint32_t tmpAHB3 = regs->AHB3ENR;
+
+  if((tmpAPB1_1 & RCC_APB1ENR1_USBEN) ||
+      ((tmpAHB3 & RCC_AHB3ENR_RNGEN) && (rngSource == RNG_USB)))
+  {
+    switch(usbSource)
+    {
+    case USB_HSI48:
+      hsi48Used = true;
+      break;
+    case USB_MAINPLLQ:
+      mainPllQUsed = true;
+      break;
+    case USB_MSI:
+      msiUsed = true;
+      break;
+    case USB_SAI1PLLQ:
+      sai1PllQUsed = true;
+      break;
+    }
+  }
+
+  if(tmpAHB3 & RCC_AHB3ENR_RNGEN)
+  {
+    switch(rngSource)
+    {
+    case RNG_LSE:
+      lseUsed = true;
+      break;
+    case RNG_LSI:
+      break;
+    case RNG_USB:
+      break;
+    }
+  }
+
+  uint32_t tmpAPB1_2 = regs->APB1ENR2;
+
+  if(tmpAPB1_2 & RCC_APB1ENR2_LPUART1EN)
+  {
+    switch(lpusart1Source)
+    {
+    case UART_HSI16:
+      hsi16Used = true;
+      break;
+    case UART_LSE:
+      lseUsed = true;
+      break;
+    case UART_PCLK:
+      break;
+    case UART_SYSCLK:
+      break;
+    }
+  }
+
+  if(tmpAPB1_2 & RCC_APB1ENR2_LPTIM2EN)
+  {
+    switch(lptim2Source)
+    {
+    case LPTIM_HSI16:
+      hsi16Used = true;
+      break;
+    case LPTIM_LSE:
+      lseUsed = true;
+      break;
+    case LPTIM_LSI:
+      break;
+    case LPTIM_PCLK:
+      break;
+    }
+  }
+
+  uint32_t tmpAPB2 = regs->APB2ENR;
+
+  if(tmpAPB2 & RCC_APB2ENR_USART1EN)
+  {
+    switch(usart1Source)
+    {
+    case UART_HSI16:
+      hsi16Used = true;
+      break;
+    case UART_LSE:
+      lseUsed = true;
+      break;
+    case UART_PCLK:
+      break;
+    case UART_SYSCLK:
+      break;
+    }
+  }
+
+  if(tmpAPB2 & RCC_APB2ENR_SAI1EN)
+  {
+    switch(sai1Source)
+    {
+    case SAI1_HSI16:
+      hsi16Used = true;
+      break;
+    case SAI1_MAINPLLP:
+      mainPllPUsed = true;
+      break;
+    case SAI1_SAIEXT:
+      break;
+    case SAI1_SAIPLLP:
+      sai1PllPUsed = true;
+      break;
+    }
+  }
+
+  if(regs->AHB2ENR & RCC_AHB2ENR_ADCEN)
+  {
+    switch(adcSource)
+    {
+    case ADC_MAINPLLP:
+      mainPllPUsed = true;
+      break;
+    case ADC_OFF:
+      break;
+    case ADC_SAIPLLR:
+      sai1PllRUsed = true;
+      break;
+    case ADC_SYSCLK:
+      break;
+    }
+  }
+
+  if(mainPllPUsed || mainPllQUsed || mainPllRUsed ||
+      sai1PllPUsed || sai1PllQUsed || sai1PllRUsed)
+  {
+    switch(pllSource)
+    {
+    case PLL_HSE:
+      hseUsed = true;
+      break;
+    case PLL_HSI16:
+      hsi16Used = true;
+      break;
+    case PLL_MSI:
+      msiUsed = true;
+      break;
+    case PLL_OFF:
+      break;
+    }
+  }
+
+  if(!hseUsed)
+  {
+    disableHSE();
+  }
+
+  if(!hsi16Used)
+  {
+    disableHSI16();
+  }
+
+  if(!msiUsed)
+  {
+    disableMSI();
+  }
+
+  uint32_t tmpMainPllDis = 0;
+  if(!mainPllPUsed)
+  {
+    tmpMainPllDis |= pllOutP;
+  }
+
+  if(!mainPllQUsed)
+  {
+    tmpMainPllDis |= pllOutQ;
+  }
+
+  if(!mainPllRUsed)
+  {
+    tmpMainPllDis |= pllOutR;
+  }
+
+  if(tmpMainPllDis)
+  {
+    disableMainPll(tmpMainPllDis);
+  }
+
+  uint32_t tmpSai1PllDis = 0;
+  if(!sai1PllPUsed)
+  {
+    tmpSai1PllDis |= pllOutP;
+  }
+
+  if(!sai1PllQUsed)
+  {
+    tmpSai1PllDis |= pllOutQ;
+  }
+
+  if(!sai1PllRUsed)
+  {
+    tmpSai1PllDis |= pllOutR;
+  }
+
+  if(tmpSai1PllDis)
+  {
+    disableSai1Pll(tmpSai1PllDis);
+  }
+
+  if(!hsi48Used)
+  {
+    disableHSI48();
+  }
+
+  if(!lseUsed)
+  {
+
+  }
+
+  return true;
 }
 
 inline void THwClkTree_stm32::enableHSE()
@@ -611,7 +955,7 @@ inline void THwClkTree_stm32::enableHSI16()
   uint32_t tmp = regs->CR;
   if(!(tmp | RCC_CR_HSIRDY))
   {
-    // enable HSI6
+    // enable HSI16
     tmp |=  RCC_CR_HSION;
     regs->CR = tmp;
 
@@ -634,7 +978,102 @@ inline void THwClkTree_stm32::enableMSI()
   }
 }
 
-inline void THwClkTree_stm32::enableMainPll()
+inline void THwClkTree_stm32::enableHSI48()
+{
+  uint32_t tmp = regs->CRRCR;
+  if(!(tmp | RCC_CRRCR_HSI48RDY))
+  {
+    // enable HSI16
+    tmp |=  RCC_CRRCR_HSI48ON;
+    regs->CRRCR = tmp;
+
+    // wait until HSI16 is ready
+    while (!(regs->CRRCR & RCC_CRRCR_HSI48RDY));
+  }
+}
+
+inline void THwClkTree_stm32::enableLSE()
+{
+  uint32_t tmp = PWR->CR1;
+  // enable backup domain access
+  if (!(tmp & PWR_CR1_DBP))
+  {
+    tmp |= PWR_CR1_DBP;
+    PWR->CR1 = tmp;
+    // wait for backup domain access
+    while(!(PWR->CR1 & PWR_CR1_DBP));
+  }
+
+  // enable LSE and set drive strange to low
+  tmp = regs->BDCR;
+  if(!(tmp & RCC_BDCR_LSERDY) || (tmp & RCC_BDCR_LSEDRV))
+  {
+    tmp &= ~RCC_BDCR_LSEDRV;
+    tmp |= RCC_BDCR_LSEON;
+    regs->BDCR = tmp;
+
+    // wait until LSE is ready
+    while (!(regs->BDCR & RCC_BDCR_LSERDY));
+  }
+}
+
+inline void THwClkTree_stm32::disableHSE()
+{
+  uint32_t tmp = regs->CR;
+  tmp &= ~RCC_CR_HSEON;
+  regs->CR = tmp;
+  while(regs->CR & RCC_CR_HSERDY);
+}
+
+inline void THwClkTree_stm32::disableHSI16()
+{
+  uint32_t tmp = regs->CR;
+  tmp &= ~RCC_CR_HSION;
+  regs->CR = tmp;
+  while(regs->CR & RCC_CR_HSIRDY);
+}
+
+inline void THwClkTree_stm32::disableMSI()
+{
+  uint32_t tmp = regs->CR;
+  tmp &= ~RCC_CR_MSION;
+  regs->CR = tmp;
+  while(regs->CR & RCC_CR_MSIRDY);
+}
+
+inline void THwClkTree_stm32::disableHSI48()
+{
+  uint32_t tmp = regs->CRRCR;
+  tmp &= ~RCC_CRRCR_HSI48ON;
+  regs->CRRCR = tmp;
+  while(regs->CRRCR & RCC_CRRCR_HSI48RDY);
+}
+
+inline void THwClkTree_stm32::disableLSE()
+{
+  uint32_t tmp = PWR->CR1;
+  // enable backup domain access
+  if (!(tmp & PWR_CR1_DBP))
+  {
+    tmp |= PWR_CR1_DBP;
+    PWR->CR1 = tmp;
+    // wait for backup domain access
+    while(!(PWR->CR1 & PWR_CR1_DBP));
+  }
+
+  // disable LSE
+  tmp = regs->BDCR;
+  if(tmp & RCC_BDCR_LSEON)
+  {
+    tmp &= ~RCC_BDCR_LSEON;
+    regs->BDCR = tmp;
+
+    // wait until LSE is disabled
+    while ((regs->BDCR & RCC_BDCR_LSERDY));
+  }
+}
+
+void THwClkTree_stm32::enableMainPll(uint32_t pllOutEn)
 {
   uint32_t tmp = regs->CR;
   if(!(tmp | RCC_CR_PLLRDY))
@@ -646,9 +1085,29 @@ inline void THwClkTree_stm32::enableMainPll()
     // wait until main pll is ready
     while (!(regs->CR & RCC_CR_PLLRDY));
   }
+
+  tmp = regs->PLLCFGR;
+  if(pllOutEn & pllOutQ)
+  {
+    // enable pllq output
+    tmp |=  RCC_PLLCFGR_PLLQEN;
+  }
+
+  if(pllOutEn & pllOutR)
+  {
+    // enable pllr output
+    tmp |=  RCC_PLLCFGR_PLLREN;
+  }
+
+  if(pllOutEn & pllOutP)
+  {
+    // enable pllp output
+    tmp |=  RCC_PLLCFGR_PLLPEN;
+  }
+  regs->PLLCFGR = tmp;
 }
 
-inline void THwClkTree_stm32::enableSai1Pll()
+void THwClkTree_stm32::enableSai1Pll(uint32_t pllOutEn)
 {
   uint32_t tmp = regs->CR;
   if(!(tmp | RCC_CR_PLLSAI1RDY))
@@ -660,70 +1119,95 @@ inline void THwClkTree_stm32::enableSai1Pll()
     // wait until sai1 pll is ready
     while (!(regs->CR & RCC_CR_PLLSAI1RDY));
   }
-}
 
-inline void THwClkTree_stm32::enableMainPllQ()
-{
-  uint32_t tmp = regs->PLLCFGR;
-  if(!(tmp | RCC_PLLCFGR_PLLQEN))
+  tmp = regs->PLLSAI1CFGR;
+  if(pllOutEn & pllOutP)
   {
-    // enable HSE
-    tmp |=  RCC_PLLCFGR_PLLQEN;
-    regs->PLLCFGR = tmp;
-  }
-}
-
-inline void THwClkTree_stm32::enableSai1PllQ()
-{
-  uint32_t tmp = regs->PLLSAI1CFGR;
-  if(!(tmp | RCC_PLLSAI1CFGR_PLLQEN))
-  {
-    // enable HSE
-    tmp |=  RCC_PLLSAI1CFGR_PLLQEN;
-    regs->PLLSAI1CFGR = tmp;
-  }
-}
-
-inline void THwClkTree_stm32::enableMainPllR()
-{
-  uint32_t tmp = regs->PLLCFGR;
-  if(!(tmp | RCC_PLLCFGR_PLLREN))
-  {
-    // enable HSE
-    tmp |=  RCC_PLLCFGR_PLLREN;
-    regs->PLLCFGR = tmp;
-  }
-}
-
-inline void THwClkTree_stm32::enableSai1PllR()
-{
-  uint32_t tmp = regs->PLLSAI1CFGR;
-  if(!(tmp | RCC_PLLSAI1CFGR_PLLREN))
-  {
-    // enable HSE
-    tmp |=  RCC_PLLSAI1CFGR_PLLREN;
-    regs->PLLSAI1CFGR = tmp;
-  }
-}
-
-inline void THwClkTree_stm32::enableMainPllP()
-{
-  uint32_t tmp = regs->PLLCFGR;
-  if(!(tmp | RCC_PLLCFGR_PLLPEN))
-  {
-    // enable HSE
-    tmp |=  RCC_PLLCFGR_PLLPEN;
-    regs->PLLCFGR = tmp;
-  }
-}
-
-inline void THwClkTree_stm32::enableSai1PllP()
-{
-  uint32_t tmp = regs->PLLSAI1CFGR;
-  if(!(tmp | RCC_PLLSAI1CFGR_PLLPEN))
-  {
-    // enable HSE
+    // enable pllp output
     tmp |=  RCC_PLLSAI1CFGR_PLLPEN;
-    regs->PLLSAI1CFGR = tmp;
+  }
+
+  if(pllOutEn & pllOutQ)
+  {
+    // enable pllq output
+    tmp |=  RCC_PLLSAI1CFGR_PLLQEN;
+  }
+
+  if(pllOutEn & pllOutR)
+  {
+    // enable pllr output
+    tmp |=  RCC_PLLSAI1CFGR_PLLREN;
+  }
+  regs->PLLSAI1CFGR = tmp;
+}
+
+inline void THwClkTree_stm32::disableMainPll(uint32_t pllOutDis)
+{
+  uint32_t tmp = regs->PLLCFGR;
+  if(pllOutDis & pllOutQ)
+  {
+    // enable pllq output
+    tmp &= ~RCC_PLLCFGR_PLLQEN;
+  }
+
+  if(pllOutDis & pllOutR)
+  {
+    // enable pllr output
+    tmp &= ~RCC_PLLCFGR_PLLREN;
+  }
+
+  if(pllOutDis & pllOutP)
+  {
+    // enable pllp output
+    tmp &= ~RCC_PLLCFGR_PLLPEN;
+  }
+  regs->PLLCFGR = tmp;
+
+  if(pllOutDis == 0 || (tmp & (RCC_PLLCFGR_PLLQEN | RCC_PLLCFGR_PLLPEN | RCC_PLLCFGR_PLLREN)) == 0)
+  {
+    tmp = regs->CR;
+    if(tmp & RCC_CR_PLLON)
+    {
+      tmp &= ~RCC_CR_PLLON;
+      regs->CR = tmp;
+
+      while(regs->CR & RCC_CR_PLLRDY);
+    }
+  }
+}
+
+
+inline void THwClkTree_stm32::disableSai1Pll(uint32_t pllOutDis)
+{
+  uint32_t tmp = regs->PLLSAI1CFGR;
+  if(pllOutDis & pllOutQ)
+  {
+    // enable pllq output
+    tmp &= ~RCC_PLLSAI1CFGR_PLLQEN;
+  }
+
+  if(pllOutDis & pllOutR)
+  {
+    // enable pllr output
+    tmp &= ~RCC_PLLSAI1CFGR_PLLREN;
+  }
+
+  if(pllOutDis & pllOutP)
+  {
+    // enable pllp output
+    tmp &= ~RCC_PLLSAI1CFGR_PLLPEN;
+  }
+  regs->PLLSAI1CFGR = tmp;
+
+  if(pllOutDis == 0 || (tmp & (RCC_PLLSAI1CFGR_PLLQEN | RCC_PLLSAI1CFGR_PLLPEN | RCC_PLLSAI1CFGR_PLLREN)) == 0)
+  {
+    tmp = regs->CR;
+    if(tmp & RCC_CR_PLLSAI1ON)
+    {
+      tmp &= ~RCC_CR_PLLSAI1ON;
+      regs->CR = tmp;
+
+      while(regs->CR & RCC_CR_PLLSAI1RDY);
+    }
   }
 }

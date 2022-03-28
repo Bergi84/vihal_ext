@@ -109,6 +109,12 @@ class THwClkTree_stm32 : public THwClkTree_pre
     RNG_LSE = 2
   }rngSource_t;
 
+  typedef enum {
+    RFWU_OFF = 0,
+    RFWU_LSE = 1,
+    RFWU_HSE = 3,
+  }rfwuSource_t;
+
   static constexpr uint32_t lsi1Speed = 32000;
   static constexpr uint32_t lsi2Speed = 32000;
   static constexpr uint32_t lseSpeed = 32768;
@@ -142,7 +148,9 @@ class THwClkTree_stm32 : public THwClkTree_pre
   uint8_t pclk1div;
   uint8_t pclk2div;
   hclk5Source_t hclk5Source;
+  rfwuSource_t rfwuSource;
 
+  // Peripheries with selectable clk source
   uartSource_t usart1Source;
   uartSource_t lpusart1Source;
   i2cSource_t i2c1Source;
@@ -202,19 +210,30 @@ class THwClkTree_stm32 : public THwClkTree_pre
 
   bool getCpu1ClkSpeed(uint32_t &aClkSpeed);
   bool getCpu2ClkSpeed(uint32_t &aClkSpeed);
+  bool getPeriClkSpeed(uint32_t &aClkSpeed, void* baseadr);
 
 private:
   inline void enableHSE();
   inline void enableHSI16();
   inline void enableMSI();
-  inline void enableMainPll();
-  inline void enableMainPllQ();
-  inline void enableMainPllP();
-  inline void enableMainPllR();
-  inline void enableSai1Pll();
-  inline void enableSai1PllQ();
-  inline void enableSai1PllP();
-  inline void enableSai1PllR();
+  inline void enableHSI48();
+  inline void enableLSE();
+
+  inline void disableHSE();
+  inline void disableHSI16();
+  inline void disableMSI();
+  inline void disableHSI48();
+  inline void disableLSE();
+
+  static constexpr uint32_t pllOutQ = 1;
+  static constexpr uint32_t pllOutP = 2;
+  static constexpr uint32_t pllOutR = 4;
+
+  inline void enableMainPll(uint32_t pllOutEn = 0);
+  inline void enableSai1Pll(uint32_t pllOutEn = 0);
+
+  inline void disableMainPll(uint32_t pllOutDis = 0);
+  inline void disableSai1Pll(uint32_t pllOutDis = 0);
 };
 
 #define HWCLKTREE_IMPL THwClkTree_stm32
