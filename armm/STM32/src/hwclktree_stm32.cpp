@@ -187,6 +187,7 @@ void THwClkTree_stm32::updateClkTree()
   }
   rfwuSource = static_cast<rfwuSource_t>((tmp & RCC_CSR_RFWKPSEL) >> RCC_CSR_RFWKPSEL_Pos);
 
+  getSysClkSpeed();
 }
 
 bool THwClkTree_stm32::setRtcClkSource(rtcSource_t aClkSource)
