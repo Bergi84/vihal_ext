@@ -309,11 +309,10 @@ bool THwClkTree_stm32::setSysClkSource(sysSource_t aClkSource)
 
   // switch to requested source
   uint32_t tmp = regs->CFGR;
-  uint32_t src = (uint32_t)aClkSource << RCC_CFGR_SW_Pos;
   tmp &= ~RCC_CFGR_SW;
-  tmp |= src;
+  tmp |= ((uint32_t)aClkSource << RCC_CFGR_SW_Pos);
   regs->CFGR = tmp;
-  while((regs->CFGR & RCC_CFGR_SW) != src);
+  while((regs->CFGR & RCC_CFGR_SWS) != ((uint32_t)aClkSource << RCC_CFGR_SWS_Pos));
 
   return true;
 }
@@ -403,9 +402,9 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
 bool THwClkTree_stm32::confPllMain(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uint8_t qDiv)
 {
   uint32_t conf = (uint32_t)nMul << RCC_PLLCFGR_PLLN_Pos;
-  conf |= (uint32_t)pDiv << RCC_PLLCFGR_PLLP_Pos;
-  conf |= (uint32_t)rDiv << RCC_PLLCFGR_PLLR_Pos;
-  conf |= (uint32_t)qDiv << RCC_PLLCFGR_PLLQ_Pos;
+  conf |= (uint32_t)(pDiv - 1) << RCC_PLLCFGR_PLLP_Pos;
+  conf |= (uint32_t)(rDiv - 1) << RCC_PLLCFGR_PLLR_Pos;
+  conf |= (uint32_t)(qDiv - 1) << RCC_PLLCFGR_PLLQ_Pos;
 
   bool pllIsOn;
   bool pllIsSysClk;
@@ -447,9 +446,9 @@ bool THwClkTree_stm32::confPllMain(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uin
 bool THwClkTree_stm32::confPllSai(uint8_t nMul, uint8_t pDiv, uint8_t rDiv, uint8_t qDiv)
 {
   uint32_t conf = (uint32_t)nMul << RCC_PLLSAI1CFGR_PLLN_Pos;
-  conf |= (uint32_t)pDiv << RCC_PLLSAI1CFGR_PLLP_Pos;
-  conf |= (uint32_t)rDiv << RCC_PLLSAI1CFGR_PLLR_Pos;
-  conf |= (uint32_t)qDiv << RCC_PLLSAI1CFGR_PLLQ_Pos;
+  conf |= (uint32_t)(pDiv - 1) << RCC_PLLSAI1CFGR_PLLP_Pos;
+  conf |= (uint32_t)(rDiv - 1) << RCC_PLLSAI1CFGR_PLLR_Pos;
+  conf |= (uint32_t)(qDiv - 1) << RCC_PLLSAI1CFGR_PLLQ_Pos;
 
   bool pllIsOn;
 
@@ -1781,7 +1780,7 @@ bool THwClkTree_stm32::getPeriClkSpeed(void * aBaseAdr, uint32_t &aSpeed)
 inline void THwClkTree_stm32::enableHSE()
 {
   uint32_t tmp = regs->CR;
-  if(!(tmp | RCC_CR_HSERDY))
+  if(!(tmp & RCC_CR_HSERDY))
   {
     // enable HSE
     tmp |=  RCC_CR_HSEON;
@@ -1795,7 +1794,7 @@ inline void THwClkTree_stm32::enableHSE()
 inline void THwClkTree_stm32::enableHSI16()
 {
   uint32_t tmp = regs->CR;
-  if(!(tmp | RCC_CR_HSIRDY))
+  if(!(tmp & RCC_CR_HSIRDY))
   {
     // enable HSI16
     tmp |=  RCC_CR_HSION;
@@ -1809,7 +1808,7 @@ inline void THwClkTree_stm32::enableHSI16()
 inline void THwClkTree_stm32::enableMSI()
 {
   uint32_t tmp = regs->CR;
-  if(!(tmp | RCC_CR_MSIRDY))
+  if(!(tmp & RCC_CR_MSIRDY))
   {
     // enable MSE
     tmp |=  RCC_CR_MSION;
@@ -1823,7 +1822,7 @@ inline void THwClkTree_stm32::enableMSI()
 inline void THwClkTree_stm32::enableHSI48()
 {
   uint32_t tmp = regs->CRRCR;
-  if(!(tmp | RCC_CRRCR_HSI48RDY))
+  if(!(tmp & RCC_CRRCR_HSI48RDY))
   {
     // enable HSI16
     tmp |=  RCC_CRRCR_HSI48ON;
@@ -1918,7 +1917,7 @@ inline void THwClkTree_stm32::disableLSE()
 void THwClkTree_stm32::enableMainPll(uint32_t pllOutEn)
 {
   uint32_t tmp = regs->CR;
-  if(!(tmp | RCC_CR_PLLRDY))
+  if(!(tmp & RCC_CR_PLLRDY))
   {
     // enable main pll
     tmp |=  RCC_CR_PLLON;
@@ -1952,7 +1951,7 @@ void THwClkTree_stm32::enableMainPll(uint32_t pllOutEn)
 void THwClkTree_stm32::enableSai1Pll(uint32_t pllOutEn)
 {
   uint32_t tmp = regs->CR;
-  if(!(tmp | RCC_CR_PLLSAI1RDY))
+  if(!(tmp & RCC_CR_PLLSAI1RDY))
   {
     // enable sai1 pll
     tmp |=  RCC_CR_PLLSAI1ON;
