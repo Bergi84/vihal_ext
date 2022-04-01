@@ -13,6 +13,7 @@
 
 class THwClkTree_stm32 : public THwClkTree_pre
 {
+public:
   RCC_TypeDef* regs;
 
   typedef enum {
@@ -120,7 +121,9 @@ class THwClkTree_stm32 : public THwClkTree_pre
   static constexpr uint32_t lseSpeed = 32768;
   static constexpr uint32_t hseSpeed = 32000000;
   static constexpr uint32_t hsi16Speed = 16000000;
+  static constexpr uint32_t hsi48Speed = 48000000;
   uint32_t msiSpeed;
+  uint32_t sysSpeed;
 
   rtcSource_t rtcSource;
   clkOutSource_t clkOutSource;
@@ -162,9 +165,7 @@ class THwClkTree_stm32 : public THwClkTree_pre
   adcSource_t adcSource;
   rngSource_t rngSource;
 
-  // updates all clock divider and clock sources
-  // for clock speed calculations
-  void updateClkTree();
+  bool init();
 
   // enable and select clock source for RTC
   // LSI2 or LSI2 clock direct used by watch dog so one LSI must always run
@@ -173,7 +174,7 @@ class THwClkTree_stm32 : public THwClkTree_pre
   // LSI2: low drift, factory calibration clock
   bool setRtcClkSource(rtcSource_t aClkSource);
 
-  // enable and select clock source for clock output
+  // select clock source for clock output
   // if does not enable clocks if a disabled clock source is selected
   // preDiv can a value between 1 and 32, only exponents of 2 are supported
   bool setOutClkSource(clkOutSource_t aClkSource, uint8_t preDiv);
@@ -204,15 +205,50 @@ class THwClkTree_stm32 : public THwClkTree_pre
   // SMPS supports 4Mhz (fourMhz = true) and 8Mhz (fourMhz = false)
   bool setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz);
 
+  // this function configure flash wait state for requested speed
+  // and enables prefetching and caches
+  bool confFlashForSpeed(uint32_t aClkSpeed);
+
+  // set divider CPU1, APB1 and APB2
+  // supported divider for APB1 and APB2: 1, 2, 4, 8, 16, 32
+  // supported divider for CPU: 1, 2, 4, 5, 6, 8, 10, 16, 32, 64, 128, 256, 512
+  bool setCpu1SubTreeDiv(uint32_t aCpuDiv, uint32_t aApb1Div, uint32_t aApb2Div);
+
+  // set divider for CPU2
+  // supported divider for CPU: 1, 2, 4, 5, 6, 8, 10, 16, 32, 64, 128, 256, 512
+  bool setCpu2ClkDiv(uint32_t aDiv);
+
+  // set divider for Flash and SRAM2
+  // supported divider for CPU: 1, 2, 4, 5, 6, 8, 10, 16, 32, 64, 128, 256, 512
+  bool setFlashClkDiv(uint32_t aDiv);
+
+  // enable and select clock source for periphery
+  bool setUsart1ClkSource(uartSource_t aClkSource);
+  bool setLpusart1ClkSource(uartSource_t aClkSource);
+  bool setI2c1ClkSource(i2cSource_t aClkSource);
+  bool setI2c3ClkSource(i2cSource_t aClkSource);
+  bool setLptim1ClkSource(lptimSource_t aClkSource);
+  bool setLptim2ClkSource(lptimSource_t aClkSource);
+  bool setSai1ClkSource(sai1Source_t aClkSource);
+  bool setUsbClkSource(usbSource_t aClkSource);
+  bool setAdcClkSource(adcSource_t aClkSource);
+  bool setRngClkSource(rngSource_t aClkSource);
+
   bool hseCapTune(uint32_t capVal);
 
+  // disable all currently unused clock sources
   bool disableUnusedClk();
 
   bool getCpu1ClkSpeed(uint32_t &aClkSpeed);
   bool getCpu2ClkSpeed(uint32_t &aClkSpeed);
-  bool getPeriClkSpeed(uint32_t &aClkSpeed, void* baseadr);
+  bool getFlashSpeed(uint32_t &aClkSpeed);
+  bool getPeriClkSpeed(void * aBaseAdr, uint32_t &aSpeed);
 
 private:
+  // updates all clock divider and clock sources
+  // for clock speed calculations
+  void updateClkTree();
+
   inline void enableHSE();
   inline void enableHSI16();
   inline void enableMSI();
@@ -234,6 +270,10 @@ private:
 
   inline void disableMainPll(uint32_t pllOutDis = 0);
   inline void disableSai1Pll(uint32_t pllOutDis = 0);
+
+  void getSysClkSpeed();
+  void getMainPllClkSpeed(uint32_t & aSpeed, uint32_t pllOut);
+  void getSai1PllClkSpeed(uint32_t & aSpeed, uint32_t pllOut);
 };
 
 #define HWCLKTREE_IMPL THwClkTree_stm32

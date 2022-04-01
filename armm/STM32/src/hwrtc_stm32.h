@@ -26,6 +26,8 @@ public:
   // set periodic wake up timer to aMSecTime and enable timer
   bool setWakeupTimer(uint16_t aMSecTime);
 
+  bool setPeriphClock(uint32_t aclk);
+
   // disable timer
   bool stopWakeupTimer();
 
@@ -42,9 +44,12 @@ private:
   uint32_t lastTr;
   uint32_t lastDr;
 
+  uint32_t periphclock;
+
   // inlined helper functions
   void lockRegs();
   void unlockRegs();
+  void calcDivider();
   void readCalReg(uint32_t &aSsr, uint32_t &aTr, uint32_t &aDr);
   void convSsr2Ms(uint32_t &aSsr, uint16_t &aMs);
   void convTr2Int(uint32_t &aTr, uint8_t &aSec, uint8_t &aMin, uint8_t &aHour);

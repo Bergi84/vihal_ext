@@ -16,78 +16,21 @@ bool THwRtc_stm32::init()
 {
   regs = RTC;
 
-  // enable backup domain access, after reset this access is disabled
-  //to avoid wrong writes to backup domain during startup
-  PWR->CR1 |= PWR_CR1_DBP;
-  // wait for backup domain access
-  while(!(PWR->CR1 & PWR_CR1_DBP))
-  {
-
-  }
-
-  uint32_t pheriphclock;
-
-  uint32_t tmp = RCC->BDCR & RCC_BDCR_RTCSEL;
-  if(tmp == 1 << RCC_BDCR_RTCSEL_Pos)
-  {
-    // LSE is clock source
-    pheriphclock = 32768;
-  }
-  else if(tmp == 2 << RCC_BDCR_RTCSEL_Pos)
-  {
-    // LSI is clock source
-    pheriphclock = 32000;
-  }
-  else
-  {
-    // error clock source not supported
-    return false;
-  }
+  periphclock = 32768;
 
   // enable clocks for RTC
   RCC->BDCR |= RCC_BDCR_RTCEN;
   RCC->APB1ENR1 |= RCC_APB1ENR1_RTCAPBEN;
 
-  unlockRegs();
+  calcDivider();
 
-  // switch to init mode
-  if(!(regs->ISR & RTC_ISR_INITF))
-  {
-    regs->ISR = RTC_ISR_INIT;
-    while(!(regs->ISR & RTC_ISR_INITF))
-    {
+  return true;
+}
 
-    }
-  }
-
-  // disable wake up timer
-  if(~(regs->ISR & RTC_ISR_WUTWF))
-  {
-    regs->CR &= ~RTC_CR_WUTE;
-    while(!(regs->ISR & RTC_ISR_WUTWF))
-    {
-
-    }
-  }
-
-  // set wake up timer divider to 16
-  // disable output
-  // switch 24h format
-  tmp = regs->CR;
-  tmp &= ~(RTC_CR_WUCKSEL | RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL | RTC_CR_BYPSHAD);
-  tmp &= 0 << RTC_CR_WUCKSEL_Pos;
-  regs->CR = tmp;
-
-  // set async divider to same value as wake up timer (div 16)
-  // set sync divider to generate 1Hz for RTC
-  syncDiv = pheriphclock/16;
-  wakeUpMaxMsec = 0x0000FFFF * 1000UL / (uint32_t)syncDiv;
-  regs->PRER = (15 << RTC_PRER_PREDIV_A_Pos) | ((pheriphclock/16 - 1) << RTC_PRER_PREDIV_S_Pos);
-
-  // exit init mode
-  regs->ISR &= ~RTC_ISR_INIT;
-
-  lockRegs();
+bool THwRtc_stm32::setPeriphClock(uint32_t aclk)
+{
+  periphclock = aclk;
+  calcDivider();
 
   return true;
 }
@@ -251,6 +194,59 @@ inline void THwRtc_stm32::unlockRegs()
 {
   regs->WPR = 0xCAU;
   regs->WPR = 0x53U;
+}
+
+void THwRtc_stm32::calcDivider()
+{
+  // enable backup domain access, after reset this access is disabled
+  //to avoid wrong writes to backup domain during startup
+  PWR->CR1 |= PWR_CR1_DBP;
+  // wait for backup domain access
+  while(!(PWR->CR1 & PWR_CR1_DBP))
+  {
+
+  }
+
+  unlockRegs();
+
+  // switch to init mode
+  if(!(regs->ISR & RTC_ISR_INITF))
+  {
+    regs->ISR = RTC_ISR_INIT;
+    while(!(regs->ISR & RTC_ISR_INITF))
+    {
+
+    }
+  }
+
+  // disable wake up timer
+  if(~(regs->ISR & RTC_ISR_WUTWF))
+  {
+    regs->CR &= ~RTC_CR_WUTE;
+    while(!(regs->ISR & RTC_ISR_WUTWF))
+    {
+
+    }
+  }
+
+  // set wake up timer divider to 16
+  // disable output
+  // switch 24h format
+  uint32_t tmp = regs->CR;
+  tmp &= ~(RTC_CR_WUCKSEL | RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL | RTC_CR_BYPSHAD);
+  tmp &= 0 << RTC_CR_WUCKSEL_Pos;
+  regs->CR = tmp;
+
+  // set async divider to same value as wake up timer (div 16)
+  // set sync divider to generate 1Hz for RTC
+  syncDiv = periphclock/16;
+  wakeUpMaxMsec = 0x0000FFFF * 1000UL / (uint32_t)syncDiv;
+  regs->PRER = (15 << RTC_PRER_PREDIV_A_Pos) | ((periphclock/16 - 1) << RTC_PRER_PREDIV_S_Pos);
+
+  // exit init mode
+  regs->ISR &= ~RTC_ISR_INIT;
+
+  lockRegs();
 }
 
 inline void THwRtc_stm32::readCalReg(uint32_t &aSsr, uint32_t &aTr, uint32_t &aDr)

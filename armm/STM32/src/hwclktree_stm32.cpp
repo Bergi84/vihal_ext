@@ -1,6 +1,13 @@
 
 #include "hwclktree_stm32.h"
 
+bool THwClkTree_stm32::init()
+{
+  regs = RCC;
+
+  return true;
+}
+
 void THwClkTree_stm32::updateClkTree()
 {
   uint32_t tmp = regs->CR;
@@ -362,6 +369,19 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
       disableMainPll();
     }
 
+    switch(aClkSource)
+    {
+    case PLL_HSE:
+      enableHSE();
+      break;
+    case PLL_HSI16:
+      enableHSI16();
+      break;
+    case PLL_MSI:
+      enableMSI();
+      break;
+    }
+
     uint32_t tmp = regs->PLLCFGR;
     tmp &= ~(RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM);
     tmp |= srcConf;
@@ -476,6 +496,422 @@ bool THwClkTree_stm32::setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz)
   else
     tmp |= (aClkSource << RCC_SMPSCR_SMPSDIV_Pos) | RCC_SMPSCR_SMPSDIV_0;
   regs->SMPSCR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::confFlashForSpeed(uint32_t aClkSpeed)
+{
+  unsigned ws;
+  if      (aClkSpeed <= 18000000)  ws = FLASH_ACR_LATENCY_0WS;
+  else if (aClkSpeed <= 36000000)  ws = FLASH_ACR_LATENCY_1WS;
+  else if (aClkSpeed <= 54000000)  ws = FLASH_ACR_LATENCY_2WS;
+  else
+  {
+    ws = FLASH_ACR_LATENCY_3WS;
+  }
+
+  // enable caches, prefetching and set wait states
+  uint32_t tmp = FLASH->ACR;
+  tmp &= ~FLASH_ACR_LATENCY;
+  tmp |= (ws << FLASH_ACR_LATENCY_Pos) | FLASH_ACR_ICEN | FLASH_ACR_DCEN | FLASH_ACR_PRFTEN;
+  FLASH->ACR = ws;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setCpu1SubTreeDiv(uint32_t aCpuDiv, uint32_t aApb1Div, uint32_t aApb2Div)
+{
+  uint32_t tmp = regs->CFGR;
+  tmp &= ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2);
+
+  if(aApb1Div > 1)
+  {
+    tmp |= ((32 - __CLZ(aApb1Div >> 2)) << RCC_CFGR_PPRE1_Pos) | RCC_CFGR_PPRE1_2;
+  }
+
+  if(aApb2Div > 1)
+  {
+    tmp |= ((32 - __CLZ(aApb2Div >> 2)) << RCC_CFGR_PPRE2_Pos) | RCC_CFGR_PPRE2_2;
+  }
+
+  uint32_t encDiv;
+
+  if(aCpuDiv < 10)
+  switch(aCpuDiv)
+  {
+  case 1: encDiv = 0;     break;
+  case 2: encDiv = 8;     break;
+  case 3: encDiv = 1;     break;
+  case 4: encDiv = 9;     break;
+  case 5: encDiv = 2;     break;
+  case 6:
+  case 7: encDiv = 5;     break;
+  case 8:
+  case 9: encDiv = 10;    break;
+  }
+  else if (aCpuDiv < 16)
+    encDiv = 6;     // div = 10
+  else if (aCpuDiv < 32)
+    encDiv = 11;    // div = 16
+  else if (aCpuDiv < 64)
+    encDiv = 7;    // div = 32
+  else if (aCpuDiv < 128)
+    encDiv = 12;    // div = 64
+  else if (aCpuDiv < 256)
+    encDiv = 13;    // div = 128
+  else if (aCpuDiv < 512)
+    encDiv = 14;    // div = 256
+  else
+    encDiv = 15;    // div = 512
+
+  tmp |= encDiv << RCC_CFGR_HPRE_Pos;
+
+  regs->CFGR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setCpu2ClkDiv(uint32_t aDiv)
+{
+  uint32_t tmp = regs->EXTCFGR;
+    tmp &= ~RCC_EXTCFGR_C2HPRE;
+
+    uint32_t encDiv;
+
+    if(aDiv < 10)
+    switch(aDiv)
+    {
+    case 1: encDiv = 0;     break;
+    case 2: encDiv = 8;     break;
+    case 3: encDiv = 1;     break;
+    case 4: encDiv = 9;     break;
+    case 5: encDiv = 2;     break;
+    case 6:
+    case 7: encDiv = 5;     break;
+    case 8:
+    case 9: encDiv = 10;    break;
+    }
+    else if (aDiv < 16)
+      encDiv = 6;     // div = 10
+    else if (aDiv < 32)
+      encDiv = 11;    // div = 16
+    else if (aDiv < 64)
+      encDiv = 7;    // div = 32
+    else if (aDiv < 128)
+      encDiv = 12;    // div = 64
+    else if (aDiv < 256)
+      encDiv = 13;    // div = 128
+    else if (aDiv < 512)
+      encDiv = 14;    // div = 256
+    else
+      encDiv = 15;    // div = 512
+
+    tmp |= encDiv << RCC_EXTCFGR_C2HPRE_Pos;
+
+    regs->EXTCFGR = tmp;
+
+    return true;
+}
+
+bool THwClkTree_stm32::setFlashClkDiv(uint32_t aDiv)
+{
+  uint32_t tmp = regs->EXTCFGR;
+    tmp &= ~RCC_EXTCFGR_SHDHPRE;
+
+    uint32_t encDiv;
+
+    if(aDiv < 10)
+    switch(aDiv)
+    {
+    case 1: encDiv = 0;     break;
+    case 2: encDiv = 8;     break;
+    case 3: encDiv = 1;     break;
+    case 4: encDiv = 9;     break;
+    case 5: encDiv = 2;     break;
+    case 6:
+    case 7: encDiv = 5;     break;
+    case 8:
+    case 9: encDiv = 10;    break;
+    }
+    else if (aDiv < 16)
+      encDiv = 6;     // div = 10
+    else if (aDiv < 32)
+      encDiv = 11;    // div = 16
+    else if (aDiv < 64)
+      encDiv = 7;    // div = 32
+    else if (aDiv < 128)
+      encDiv = 12;    // div = 64
+    else if (aDiv < 256)
+      encDiv = 13;    // div = 128
+    else if (aDiv < 512)
+      encDiv = 14;    // div = 256
+    else
+      encDiv = 15;    // div = 512
+
+    tmp |= encDiv << RCC_EXTCFGR_SHDHPRE_Pos;
+
+    regs->EXTCFGR = tmp;
+
+    return true;
+}
+
+bool THwClkTree_stm32::setUsart1ClkSource(uartSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case UART_HSI16:
+    enableHSI16();
+    break;
+
+  case UART_LSE:
+    enableLSE();
+    break;
+
+  case UART_PCLK:
+    break;
+
+  case UART_SYSCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_USART1SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_USART1SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setLpusart1ClkSource(uartSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case UART_HSI16:
+    enableHSI16();
+    break;
+
+  case UART_LSE:
+    enableLSE();
+    break;
+
+  case UART_PCLK:
+    break;
+
+  case UART_SYSCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_LPUART1SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_LPUART1SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setI2c1ClkSource(i2cSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case I2C_HSI16:
+    enableHSI16();
+    break;
+
+  case I2C_PCLK:
+    break;
+
+  case I2C_SYSCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_I2C1SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_I2C1SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setI2c3ClkSource(i2cSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case I2C_HSI16:
+    enableHSI16();
+    break;
+
+  case I2C_PCLK:
+    break;
+
+  case I2C_SYSCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_I2C3SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_I2C3SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setLptim1ClkSource(lptimSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case LPTIM_HSI16:
+    enableHSI16();
+    break;
+
+  case LPTIM_LSE:
+    enableLSE();
+    break;
+
+  case LPTIM_LSI:
+    break;
+
+  case LPTIM_PCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_LPTIM1SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_LPTIM1SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setLptim2ClkSource(lptimSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case LPTIM_HSI16:
+    enableHSI16();
+    break;
+
+  case LPTIM_LSE:
+    enableLSE();
+    break;
+
+  case LPTIM_LSI:
+    break;
+
+  case LPTIM_PCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_LPTIM2SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_LPTIM2SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setSai1ClkSource(sai1Source_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case SAI1_HSI16:
+    enableHSI16();
+    break;
+
+  case SAI1_MAINPLLP:
+    enableMainPll(pllOutP);
+    break;
+
+  case SAI1_SAIEXT:
+    break;
+
+  case SAI1_SAIPLLP:
+    enableSai1Pll(pllOutP);
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_SAI1SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_SAI1SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setUsbClkSource(usbSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case USB_MAINPLLQ:
+    enableMainPll(pllOutQ);
+    break;
+
+  case USB_HSI48:
+    enableHSI48();
+    break;
+
+  case USB_MSI:
+    enableMSI();
+    break;
+
+  case USB_SAI1PLLQ:
+    enableSai1Pll(pllOutQ);
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_CLK48SEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_CLK48SEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setAdcClkSource(adcSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case ADC_MAINPLLP:
+    enableMainPll(pllOutP);
+    break;
+
+  case ADC_SAIPLLR:
+    enableSai1Pll(pllOutR);
+    break;
+
+  case ADC_SYSCLK:
+    break;
+  }
+
+  uint32_t tmp = regs->CCIPR;
+  tmp &= ~RCC_CCIPR_ADCSEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_ADCSEL_Pos;
+  regs->CCIPR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setRngClkSource(rngSource_t aClkSource)
+{
+  uint32_t tmp = regs->CCIPR;
+  switch(aClkSource)
+  {
+  case RNG_LSE:
+    enableLSE();
+    break;
+
+  case RNG_LSI:
+    break;
+
+  case RNG_USB:
+    // enable selected USB clock source
+    setUsbClkSource(static_cast<usbSource_t>((tmp & RCC_CCIPR_CLK48SEL) >> RCC_CCIPR_CLK48SEL_Pos));
+    break;
+  }
+
+  tmp &= ~RCC_CCIPR_RNGSEL;
+  tmp |= (uint32_t)aClkSource << RCC_CCIPR_RNGSEL_Pos;
+  regs->CCIPR = tmp;
 
   return true;
 }
@@ -930,10 +1366,415 @@ bool THwClkTree_stm32::disableUnusedClk()
 
   if(!lseUsed)
   {
-
+    // todo: implent diable LSE
   }
 
   return true;
+}
+
+bool THwClkTree_stm32::getCpu1ClkSpeed(uint32_t &aClkSpeed)
+{
+  updateClkTree();
+
+  aClkSpeed = sysSpeed / (uint32_t)hclk1div;
+
+  return true;
+}
+
+bool THwClkTree_stm32::getCpu2ClkSpeed(uint32_t &aClkSpeed)
+{
+  updateClkTree();
+
+  aClkSpeed = sysSpeed / (uint32_t)hclk2div;
+
+  return true;
+}
+
+bool THwClkTree_stm32::getFlashSpeed(uint32_t &aClkSpeed)
+{
+  updateClkTree();
+
+  aClkSpeed = sysSpeed / (uint32_t)hclk4div;
+
+  return true;
+}
+
+bool THwClkTree_stm32::getPeriClkSpeed(void * aBaseAdr, uint32_t &aSpeed)
+{
+  uint32_t adr = (uint32_t) aBaseAdr;
+  if(adr >= PERIPH_BASE && adr <= QUADSPI_R_BASE)
+  {
+    if(adr < APB2PERIPH_BASE)
+    {
+      // APB1
+      uint32_t apb1speed;
+      getCpu1ClkSpeed(apb1speed);
+      apb1speed /= pclk1div;
+
+      switch(adr)
+      {
+      case  TIM2_BASE:
+        if(pclk1div > 1)
+          aSpeed = 2 * apb1speed;
+        else
+          aSpeed = apb1speed;
+        break;
+
+      case  LCD_BASE:
+      case  RTC_BASE:
+        switch (rtcSource)
+        {
+        case RTC_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case RTC_LSI1:
+          aSpeed = lsi1Speed;
+          break;
+        case RTC_LSI2:
+          aSpeed = lsi2Speed;
+          break;
+
+        case RTC_HSE:
+          aSpeed = hseSpeed / 32;
+          break;
+        }
+        break;
+
+      case  IWDG_BASE:
+        if(rtcSource == lsi2Speed)
+          aSpeed = lsi2Speed;
+        else
+          aSpeed = lsi1Speed;
+        break;
+
+      case  I2C1_BASE:
+        switch(i2c1Source)
+        {
+        case I2C_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case I2C_PCLK:
+          aSpeed = apb1speed;
+          break;
+
+        case I2C_SYSCLK:
+          aSpeed = sysSpeed;
+          break;
+        }
+        break;
+
+      case  I2C3_BASE:
+        switch(i2c3Source)
+        {
+        case I2C_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case I2C_PCLK:
+          aSpeed = apb1speed;
+          break;
+
+        case I2C_SYSCLK:
+          aSpeed = sysSpeed;
+          break;
+        }
+        break;
+
+      case  USB1_BASE:
+      case  USB1_PMAADDR:
+        switch(usbSource)
+        {
+        case USB_MAINPLLQ:
+          getMainPllClkSpeed(aSpeed, pllOutQ);
+          break;
+
+        case USB_HSI48:
+          aSpeed = hsi48Speed;
+          break;
+
+        case USB_MSI:
+          aSpeed = msiSpeed;
+          break;
+
+        case USB_SAI1PLLQ:
+          getSai1PllClkSpeed(aSpeed, pllOutQ);
+          break;
+        }
+        break;
+
+      case  LPTIM1_BASE:
+        switch(lptim1Source)
+        {
+        case LPTIM_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case LPTIM_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case LPTIM_LSI:
+          if(rtcSource == lsi2Speed)
+            aSpeed = lsi2Speed;
+          else
+            aSpeed = lsi1Speed;
+          break;
+
+        case LPTIM_PCLK:
+          aSpeed = apb1speed;
+          break;
+        }
+        break;
+
+      case  LPUART1_BASE:
+        switch(lpusart1Source)
+        {
+        case UART_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case UART_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case UART_PCLK:
+          aSpeed = apb1speed;
+          break;
+
+        case UART_SYSCLK:
+          aSpeed = sysSpeed;
+          break;
+        }
+        break;
+
+      case  LPTIM2_BASE:
+        switch(lptim2Source)
+        {
+        case LPTIM_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case LPTIM_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case LPTIM_LSI:
+          if(rtcSource == lsi2Speed)
+            aSpeed = lsi2Speed;
+          else
+            aSpeed = lsi1Speed;
+          break;
+
+        case LPTIM_PCLK:
+          aSpeed = apb1speed;
+          break;
+        }
+        break;
+
+      default:
+      case  CRS_BASE:
+      case  SPI2_BASE:
+      case  WWDG_BASE:
+        aSpeed = apb1speed;
+        break;
+      }
+
+    }
+    else if(adr < AHB1PERIPH_BASE)
+    {
+      // APB2
+
+      uint32_t apb2speed;
+      getCpu1ClkSpeed(apb2speed);
+      apb2speed /= pclk1div;
+      switch(adr)
+      {
+      case  TIM1_BASE:
+      case  TIM16_BASE:
+      case  TIM17_BASE:
+        if(pclk1div > 1)
+          aSpeed = 2 * apb2speed;
+        else
+          aSpeed = apb2speed;
+        break;
+
+      case  USART1_BASE:
+        switch(usart1Source)
+        {
+        case UART_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case UART_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case UART_PCLK:
+          aSpeed = apb2speed;
+          break;
+
+        case UART_SYSCLK:
+          aSpeed = sysSpeed;
+          break;
+        }
+        break;
+
+      case  SAI1_BASE:
+      case  SAI1_Block_A_BASE:
+      case  SAI1_Block_B_BASE:
+        switch(sai1Source)
+        {
+        case SAI1_HSI16:
+          aSpeed = hsi16Speed;
+          break;
+
+        case SAI1_MAINPLLP:
+          getMainPllClkSpeed(aSpeed, pllOutP);
+          break;
+
+        case SAI1_SAIEXT:
+          aSpeed = -1;
+          break;
+
+        case SAI1_SAIPLLP:
+          getSai1PllClkSpeed(aSpeed, pllOutP);
+          break;
+        }
+        break;
+
+      default:
+      case  SPI1_BASE:
+      case  SYSCFG_BASE:
+      case  VREFBUF_BASE:
+      case  COMP1_BASE:
+      case  COMP2_BASE:
+        aSpeed = apb2speed;
+        break;
+      }
+    }
+    else if(adr < AHB2PERIPH_BASE)
+    {
+      // AHB1
+
+      // all peripheral have the same speed
+      getCpu1ClkSpeed(aSpeed);
+    }
+    else if(adr < AHB4PERIPH_BASE)
+    {
+      // AHB2
+      uint32_t ahb4speed;
+      getCpu1ClkSpeed(ahb4speed);
+
+      switch(adr)
+      {
+      case  ADC1_BASE:
+      case  ADC1_COMMON_BASE:
+        switch(adcSource)
+        {
+        case ADC_MAINPLLP:
+          getMainPllClkSpeed(aSpeed, pllOutP);
+          break;
+
+        case ADC_SAIPLLR:
+          getSai1PllClkSpeed(aSpeed, pllOutR);
+          break;
+
+        case ADC_SYSCLK:
+          aSpeed = sysSpeed;
+          break;
+        }
+        break;
+
+      default:
+      case  GPIOA_BASE:
+      case  GPIOB_BASE:
+      case  GPIOC_BASE:
+      case  GPIOD_BASE:
+      case  GPIOE_BASE:
+      case  GPIOH_BASE:
+      case  AES1_BASE:
+        aSpeed = ahb4speed;
+        break;
+      }
+    }
+    else if(adr < APB3PERIPH_BASE)
+    {
+      // AHB4
+
+      switch(adr)
+      {
+      case  RNG_BASE:
+        switch(rngSource)
+        {
+        case RNG_LSE:
+          aSpeed = lseSpeed;
+          break;
+
+        case RNG_LSI:
+          if(rtcSource == lsi2Speed)
+            aSpeed = lsi2Speed;
+          else
+            aSpeed = lsi1Speed;
+          break;
+
+        case RNG_USB:
+        {
+          uint32_t usbSpeed;
+          switch(usbSource)
+          {
+          case USB_MAINPLLQ:
+            getMainPllClkSpeed(usbSpeed, pllOutQ);
+            break;
+
+          case USB_HSI48:
+            usbSpeed = hsi48Speed;
+            break;
+
+          case USB_MSI:
+            usbSpeed = msiSpeed;
+            break;
+
+          case USB_SAI1PLLQ:
+            getSai1PllClkSpeed(usbSpeed, pllOutQ);
+            break;
+          }
+
+          aSpeed = usbSpeed / 3;
+        }
+          break;
+        }
+        break;
+      default:
+      case  RCC_BASE:
+      case  PWR_BASE:
+      case  EXTI_BASE:
+      case  IPCC_BASE:
+      case  HSEM_BASE:
+      case  AES2_BASE:
+      case  PKA_BASE:
+      case  FLASH_REG_BASE:
+        getCpu2ClkSpeed(aSpeed);
+        break;
+      }
+    }
+    else if(adr < AHB3PERIPH_BASE)
+    {
+      // APB3
+      // radio
+    }
+    else
+    {
+      // AHB3
+
+      // all peripheral have the same speed
+      getCpu1ClkSpeed(aSpeed);
+    }
+
+    return true;
+  }
+  return false;
 }
 
 inline void THwClkTree_stm32::enableHSE()
@@ -1209,5 +2050,92 @@ inline void THwClkTree_stm32::disableSai1Pll(uint32_t pllOutDis)
 
       while(regs->CR & RCC_CR_PLLSAI1RDY);
     }
+  }
+}
+
+void THwClkTree_stm32::getSysClkSpeed()
+{
+  switch(sysSource)
+  {
+  case SYS_HSE:
+    sysSpeed = hseSpeed;
+    break;
+  case SYS_HSI16:
+    sysSpeed = hsi16Speed;
+    break;
+  case SYS_MSI:
+    sysSpeed = msiSpeed;
+    break;
+  case SYS_PLLRCLK:
+    getMainPllClkSpeed(sysSpeed, pllOutR);
+    break;
+  }
+}
+
+void THwClkTree_stm32::getMainPllClkSpeed(uint32_t & aSpeed, uint32_t pllOut)
+{
+  uint32_t clkSourceSpeed;
+  switch(pllSource)
+  {
+  case PLL_HSE:
+    clkSourceSpeed = hseSpeed;
+    break;
+  case PLL_HSI16:
+    clkSourceSpeed = hsi16Speed;
+    break;
+  case PLL_MSI:
+    clkSourceSpeed = msiSpeed;
+    break;
+  }
+
+  clkSourceSpeed = clkSourceSpeed / (uint32_t)pllPreDiv;
+
+  if(pllOut & pllOutP)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)mainPll.nMul) / (uint32_t)mainPll.pDiv;
+  }
+
+  if(pllOut & pllOutR)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)mainPll.nMul) / (uint32_t)mainPll.rDiv;
+  }
+
+  if(pllOut & pllOutQ)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)mainPll.nMul) / (uint32_t)mainPll.qDiv;
+  }
+}
+
+void THwClkTree_stm32::getSai1PllClkSpeed(uint32_t & aSpeed, uint32_t pllOut)
+{
+  uint32_t clkSourceSpeed;
+  switch(pllSource)
+  {
+  case PLL_HSE:
+    clkSourceSpeed = hseSpeed;
+    break;
+  case PLL_HSI16:
+    clkSourceSpeed = hsi16Speed;
+    break;
+  case PLL_MSI:
+    clkSourceSpeed = msiSpeed;
+    break;
+  }
+
+  clkSourceSpeed = clkSourceSpeed / (uint32_t)pllPreDiv;
+
+  if(pllOut & pllOutP)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)saiPll.nMul) / (uint32_t)saiPll.pDiv;
+  }
+
+  if(pllOut & pllOutR)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)saiPll.nMul) / (uint32_t)saiPll.rDiv;
+  }
+
+  if(pllOut & pllOutQ)
+  {
+    aSpeed = (clkSourceSpeed * (uint32_t)saiPll.nMul) / (uint32_t)saiPll.qDiv;
   }
 }
