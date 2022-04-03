@@ -230,28 +230,3 @@ void TTimerServer::serviceLeftTime()
   }
 }
 
-
-void TTimerServer::irqHandler()
-{
-  TCriticalSection cSec(true);
-
-  serviceLeftTime();
-
-  uint8_t tmpId = aktivTimer;
-  while(tmpId != invalidTimerId && timerRec[tmpId].msecTimerLeft <= 0)
-  {
-    unqueue(tmpId);
-    timerRec[tmpId].cb(timerRec[tmpId].objP, lastTime);
-    if(timerRec[tmpId].repeat)
-    {
-      timerRec[tmpId].msecTimerLeft += timerRec[tmpId].msecTimerInit;
-      queue(tmpId);
-    }
-
-    tmpId = aktivTimer;
-  }
-
-  rtcRegs->clearWakeupIRQ();
-
-  cSec.leave();
-}
