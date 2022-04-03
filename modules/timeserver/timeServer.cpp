@@ -76,9 +76,9 @@ bool TTimerServer::start(uint8_t aTimerID, uint32_t aMsecTimeout)
 
   unqueue(aTimerID);
 
-  // todo: enter critical section
+  TCriticalSection cSec(true);
   serviceLeftTime();
-  // todo: leave critical section
+  cSec.leave();
 
   timerRec[aTimerID].msecTimerLeft = aMsecTimeout;
   timerRec[aTimerID].msecTimerInit = aMsecTimeout;
@@ -107,7 +107,7 @@ bool TTimerServer::stop(uint8_t aTimerID)
 
 void TTimerServer::queue(uint8_t aTimerID)
 {
-  // todo: enter critical section
+  TCriticalSection cSec(true);
 
   if(aktivTimer == invalidTimerId)
   {
@@ -149,13 +149,13 @@ void TTimerServer::queue(uint8_t aTimerID)
   }
   timerRec[aTimerID].state = TS_Running;
 
-  // todo: leave critical section
+  cSec.leave();
 }
 
 
 void TTimerServer::unqueue(uint8_t aTimerID)
 {
-  // todo: enter critical section
+  TCriticalSection cSec(true);
 
   if(timerRec[aTimerID].state == TS_Running)
   {
@@ -186,7 +186,7 @@ void TTimerServer::unqueue(uint8_t aTimerID)
     timerRec[aTimerID].state == TS_Created;
   }
 
-  // todo: leave critical section
+  cSec.leave();
 }
 
 
@@ -231,9 +231,9 @@ void TTimerServer::serviceLeftTime()
 }
 
 
-void TTimerServer::serviceQueue()
+void TTimerServer::irqHandler()
 {
-  // todo: enter critical section
+  TCriticalSection cSec(true);
 
   serviceLeftTime();
 
@@ -253,5 +253,5 @@ void TTimerServer::serviceQueue()
 
   rtcRegs->clearWakeupIRQ();
 
-  // todo: leave critical section
+  cSec.leave();
 }

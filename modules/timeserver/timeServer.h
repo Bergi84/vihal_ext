@@ -75,7 +75,7 @@ private:
 
 public:
   // must called inside timer wakeup irq
-  void serviceQueue();
+  void irqHandler();
 };
 
 
