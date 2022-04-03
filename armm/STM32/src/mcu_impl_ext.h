@@ -20,3 +20,7 @@
 #ifdef HWSEMA_H_
   #include "hwsema_stm32.h"
 #endif
+
+#ifdef HWPWR_H_
+  #include "hwpwr_stm32.h"
+#endif
