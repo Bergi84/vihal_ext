@@ -29,21 +29,6 @@ bool THwIpcc_stm32::init()
   return true;
 }
 
-bool THwIpcc_stm32::startCPU2()
-{
-  RCC->C2AHB3ENR |= RCC_C2AHB3ENR_IPCCEN;
-
-  EXTI->C2EMR2 |= EXTI_C2IMR2_IM41;
-  EXTI->RTSR2 |= EXTI_RTSR2_RT41;
-
-  __SEV( );   // send event to all cpu's
-  __WFE( );   // clear event on this cpu
-
-  PWR->CR4 |= PWR_CR4_C2BOOT;
-
-  return true;
-}
-
 bool THwIpcc_stm32::enableRxChannel(channel_t aChannel, TCbClass* mPObj, void (TCbClass::*aPMFunc)())
 {
   enableRxChannel(aChannel);

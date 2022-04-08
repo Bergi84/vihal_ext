@@ -14,7 +14,7 @@
 class THwSema_stm32 : public THwSema_pre
 {
 public:
-  static constexpr uint8_t coreID = HSEM_CR_COREID_CURRENT;
+  static constexpr uint32_t coreID = HSEM_CR_COREID_CURRENT;
   static constexpr uint8_t invalidProcID = -1;
 
   HSEM_TypeDef* regs;
@@ -37,8 +37,8 @@ public:
     else
     {
       // two step lock with proc id
-      regs->R[semaID] = (HSEM_R_LOCK | coreID | procID);
-      return regs->R[semaID] != (HSEM_R_LOCK | coreID | procID);
+      regs->R[semaID] = (HSEM_R_LOCK | coreID | (uint32_t)procID);
+      return regs->R[semaID] != (HSEM_R_LOCK | coreID | (uint32_t)procID);
     }
   }
 
@@ -50,7 +50,7 @@ public:
     }
     else
     {
-      regs->R[semaID] = coreID | procID;
+      regs->R[semaID] = coreID | (uint32_t)procID;
     }
     return regs->R[semaID] == 0;
   }

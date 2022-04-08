@@ -39,8 +39,6 @@ public:
   // enable clock and irq for ipcc
   bool init();
 
-  bool startCPU2();
-
   bool enableRxChannel(channel_t aChannel, TCbClass* mPObj, void (TCbClass::*aPMFunc)());
   bool enableRxChannel(channel_t aChannel, void (*aPFunc)());
   inline bool enableRxChannel(channel_t aChannel)

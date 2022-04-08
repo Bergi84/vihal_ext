@@ -165,7 +165,12 @@ public:
   adcSource_t adcSource;
   rngSource_t rngSource;
 
-  bool init();
+  inline bool init()
+  {
+    regs = RCC;
+
+    return true;
+  }
 
   // enable and select clock source for RTC
   // LSI2 or LSI2 clock direct used by watch dog so one LSI must always run

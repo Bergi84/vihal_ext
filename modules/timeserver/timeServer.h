@@ -1,5 +1,5 @@
 /*
- * ts.h
+ * timeServer.h
  *
  *  Created on: 12.03.2022
  *      Author: Bergi
@@ -35,8 +35,11 @@ public:
 
   struct {
     timerStatus_t state;
-    void (*cb)(void*, THwRtc::time_t);
-    void* objP;
+    TCbClass* pObj;
+    union {
+      void (TCbClass::*pMFunc)(THwRtc::time_t time);
+      void (*pFunc)(THwRtc::time_t time);
+    };
     bool repeat;
     int32_t msecTimerInit;
     int32_t msecTimerLeft;
@@ -51,7 +54,8 @@ public:
   // create a new  timer, if timer is expired the time server calls the aCb function
   // with aObjP as first argument, aCb should as short as possible because it is called
   // in interrupt context inside critical section
-  bool create(uint8_t &aTimerID, void (*aCb)(void*, THwRtc::time_t), void* aObjP, bool aRepeat);
+  bool create(uint8_t &aTimerID, void (TCbClass::*aPMFunc)(THwRtc::time_t time), TCbClass* aPObj, bool aRepeat);
+  bool create(uint8_t &aTimerID, void (*aPFunc)(THwRtc::time_t time), bool aRepeat);
   bool remove(uint8_t aTimerID);
   bool start(uint8_t aTimerID, uint32_t aMsecTimeout);
   bool stop(uint8_t aTimerID);
@@ -85,7 +89,21 @@ public:
     while(tmpId != invalidTimerId && timerRec[tmpId].msecTimerLeft <= 0)
     {
       unqueue(tmpId);
-      timerRec[tmpId].cb(timerRec[tmpId].objP, lastTime);
+      if(timerRec[tmpId].pObj == 0)
+      {
+        if(timerRec[tmpId].pMFunc != 0)
+        {
+          ((timerRec[tmpId].pObj)->*(timerRec[tmpId].pMFunc))(lastTime);
+        }
+      }
+      else
+      {
+        if(timerRec[tmpId].pFunc != 0)
+        {
+          timerRec[tmpId].pFunc(lastTime);
+        }
+      }
+
       if(timerRec[tmpId].repeat)
       {
         timerRec[tmpId].msecTimerLeft += timerRec[tmpId].msecTimerInit;

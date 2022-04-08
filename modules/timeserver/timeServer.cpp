@@ -32,7 +32,7 @@ bool TTimerServer::init(THwRtc* aRtc)
   return true;
 }
 
-bool TTimerServer::create(uint8_t &aTimerID, void (*aCb)(void*, THwRtc::time_t), void* aObjP, bool aRepeat)
+bool TTimerServer::create(uint8_t &aTimerID, void (TCbClass::*aPMFunc)(THwRtc::time_t time), TCbClass* aPObj, bool aRepeat)
 {
   for(int i = 0; i < TS_MAXTIMERS; i++)
   {
@@ -40,8 +40,27 @@ bool TTimerServer::create(uint8_t &aTimerID, void (*aCb)(void*, THwRtc::time_t),
     {
       timerRec[i].state = TS_Created;
       timerRec[i].repeat = aRepeat;
-      timerRec[i].cb = aCb;
-      timerRec[i].objP = aObjP;
+      timerRec[i].pObj = aPObj;
+      timerRec[i].pMFunc = aPMFunc;
+      aTimerID = i;
+      return true;
+    }
+  }
+
+  aTimerID = invalidTimerId;
+  return false;
+}
+
+bool TTimerServer::create(uint8_t &aTimerID, void (*aPFunc)(THwRtc::time_t time), bool aRepeat)
+{
+  for(int i = 0; i < TS_MAXTIMERS; i++)
+  {
+    if(timerRec[i].state == TS_Free)
+    {
+      timerRec[i].state = TS_Created;
+      timerRec[i].repeat = aRepeat;
+      timerRec[i].pObj = 0;
+      timerRec[i].pFunc = aPFunc;
       aTimerID = i;
       return true;
     }

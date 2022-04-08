@@ -1,12 +1,6 @@
 
 #include "hwclktree_stm32.h"
 
-bool THwClkTree_stm32::init()
-{
-  regs = RCC;
-
-  return true;
-}
 
 void THwClkTree_stm32::updateClkTree()
 {
