@@ -124,7 +124,7 @@ bool TTimerServer::stop(uint8_t aTimerID)
 }
 
 
-void TTimerServer::queue(uint8_t aTimerID)
+void TTimerServer::queue(uint8_t aTimerID, bool updateTimer)
 {
   TCriticalSection cSec(true);
 
@@ -134,7 +134,8 @@ void TTimerServer::queue(uint8_t aTimerID)
     aktivTimer = aTimerID;
     timerRec[aTimerID].nextTimerID = invalidTimerId;
     timerRec[aTimerID].prevTimerID = invalidTimerId;
-    updateWakupTimer();
+    if(updateTimer)
+      updateWakupTimer();
   }
   else
   {
@@ -145,7 +146,8 @@ void TTimerServer::queue(uint8_t aTimerID)
       timerRec[aTimerID].prevTimerID = invalidTimerId;
       timerRec[aktivTimer].prevTimerID = aTimerID;
       aktivTimer = aTimerID;
-      updateWakupTimer();
+      if(updateTimer)
+        updateWakupTimer();
     }
     else
     {
@@ -172,7 +174,7 @@ void TTimerServer::queue(uint8_t aTimerID)
 }
 
 
-void TTimerServer::unqueue(uint8_t aTimerID)
+void TTimerServer::unqueue(uint8_t aTimerID, bool updateTimer)
 {
   TCriticalSection cSec(true);
 
@@ -182,13 +184,16 @@ void TTimerServer::unqueue(uint8_t aTimerID)
     {
       aktivTimer = timerRec[aTimerID].nextTimerID;
       timerRec[aktivTimer].prevTimerID = invalidTimerId;
-      if(aktivTimer == invalidTimerId)
+      if(updateTimer)
       {
-        rtcRegs->stopWakeupTimer();
-      }
-      else
-      {
-        updateWakupTimer();
+        if(aktivTimer == invalidTimerId)
+        {
+          rtcRegs->stopWakeupTimer();
+        }
+        else
+        {
+          updateWakupTimer();
+        }
       }
     }
     else
@@ -211,14 +216,17 @@ void TTimerServer::unqueue(uint8_t aTimerID)
 
 void TTimerServer::updateWakupTimer()
 {
-  uint16_t nextWakeUp = timerRec[aktivTimer].msecTimerLeft;
+  int32_t nextWakeUp = timerRec[aktivTimer].msecTimerLeft;
   if(nextWakeUp > maxMsecSleep)
   {
     rtcRegs->setWakeupTimer(maxMsecSleep);
   }
   else
   {
-    rtcRegs->setWakeupTimer(nextWakeUp);
+    if(nextWakeUp < 1)
+      rtcRegs->setWakeupIrq();
+    else
+      rtcRegs->setWakeupTimer(nextWakeUp);
   }
 }
 

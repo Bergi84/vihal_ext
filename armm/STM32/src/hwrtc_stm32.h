@@ -34,6 +34,8 @@ public:
   // enables interrupt for wake up event
   bool enableWakeupIRQ();
 
+  void setWakeupIrq();
+
   // disable interrupt for wake up event
   bool disableWakeupIRQ();
 

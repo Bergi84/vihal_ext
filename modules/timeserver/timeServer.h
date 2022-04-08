@@ -67,8 +67,8 @@ public:
 private:
   // helper functions for internal use only
 
-  void queue(uint8_t aTimerID);
-  void unqueue(uint8_t aTimerID);
+  void queue(uint8_t aTimerID, bool updateTimer = true);
+  void unqueue(uint8_t aTimerID, bool updateTimer = true);
 
   // should only called inside critical sections
   void updateWakupTimer();
@@ -88,29 +88,41 @@ public:
     uint8_t tmpId = aktivTimer;
     while(tmpId != invalidTimerId && timerRec[tmpId].msecTimerLeft <= 0)
     {
-      unqueue(tmpId);
-      if(timerRec[tmpId].pObj == 0)
+      while(tmpId != invalidTimerId && timerRec[tmpId].msecTimerLeft <= 0)
       {
-        if(timerRec[tmpId].pMFunc != 0)
+        unqueue(tmpId, false);
+        if(timerRec[tmpId].pObj != 0)
         {
-          ((timerRec[tmpId].pObj)->*(timerRec[tmpId].pMFunc))(lastTime);
+          if(timerRec[tmpId].pMFunc != 0)
+          {
+            ((timerRec[tmpId].pObj)->*(timerRec[tmpId].pMFunc))(lastTime);
+          }
         }
-      }
-      else
-      {
-        if(timerRec[tmpId].pFunc != 0)
+        else
         {
-          timerRec[tmpId].pFunc(lastTime);
+          if(timerRec[tmpId].pFunc != 0)
+          {
+            timerRec[tmpId].pFunc(lastTime);
+          }
         }
-      }
 
-      if(timerRec[tmpId].repeat)
-      {
-        timerRec[tmpId].msecTimerLeft += timerRec[tmpId].msecTimerInit;
-        queue(tmpId);
-      }
+        if(timerRec[tmpId].repeat)
+        {
+          timerRec[tmpId].msecTimerLeft += timerRec[tmpId].msecTimerInit;
+          queue(tmpId, false);
+        }
 
-      tmpId = aktivTimer;
+        tmpId = aktivTimer;
+      }
+      serviceLeftTime();
+    }
+    if(aktivTimer == invalidTimerId)
+    {
+      rtcRegs->stopWakeupTimer();
+    }
+    else
+    {
+      updateWakupTimer();
     }
 
     rtcRegs->clearWakeupIRQ();

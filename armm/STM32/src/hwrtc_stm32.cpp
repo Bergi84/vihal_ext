@@ -185,6 +185,11 @@ void THwRtc_stm32::clearWakeupIRQ()
   NVIC_ClearPendingIRQ(RTC_WKUP_IRQn);
 }
 
+void THwRtc_stm32::setWakeupIrq()
+{
+  NVIC_SetPendingIRQ(RTC_WKUP_IRQn);
+}
+
 inline void THwRtc_stm32::lockRegs()
 {
   regs->WPR = 0xFFU;

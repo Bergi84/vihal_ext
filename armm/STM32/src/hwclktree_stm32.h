@@ -208,6 +208,7 @@ public:
 
   // Selecting SMPS clk source
   // SMPS supports 4Mhz (fourMhz = true) and 8Mhz (fourMhz = false)
+  // the STM32WB5MMG with integrated passive components is designed for 4Mhz
   bool setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz);
 
   // this function configure flash wait state for requested speed
