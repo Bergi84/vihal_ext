@@ -211,6 +211,12 @@ public:
   // the STM32WB5MMG with integrated passive components is designed for 4Mhz
   bool setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz);
 
+  // selects the next lower possible clock speed
+  // supported clock speeds: 100kHz, 200kHz, 400kHz, 800kHz
+  // 1Mhz, 2Mhz, 4Mhz, 8Mhz, 16Mhz, 24Mhz, 32Mhz, 48Mhz
+
+  bool setMsiSpeed(uint32_t aSpeed);
+
   // this function configure flash wait state for requested speed
   // and enables prefetching and caches
   bool confFlashForSpeed(uint32_t aClkSpeed);
@@ -241,6 +247,7 @@ public:
   bool setRngClkSource(rngSource_t aClkSource);
 
   bool hseCapTune(uint32_t capVal);
+  bool loadHseTune();
 
   // disable all currently unused clock sources
   bool disableUnusedClk();

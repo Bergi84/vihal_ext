@@ -332,7 +332,6 @@ bool THwClkTree_stm32::setSysStopClkSource(sysSource_t aClkSource)
   tmp &= ~RCC_CFGR_STOPWUCK;
   tmp |= src;
   regs->CFGR = tmp;
-  while((regs->CFGR & RCC_CFGR_SWS) != src);
 
   return true;
 }
@@ -344,6 +343,19 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
 
   bool pllIsOn;
   bool pllIsSysClk;
+
+  switch(aClkSource)
+  {
+  case PLL_HSE:
+    enableHSE();
+    break;
+  case PLL_HSI16:
+    enableHSI16();
+    break;
+  case PLL_MSI:
+    enableMSI();
+    break;
+  }
 
   if((regs->PLLCFGR & (RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM)) != srcConf)
   {
@@ -361,19 +373,6 @@ bool THwClkTree_stm32::setPllClkSource(pllSource_t aClkSource, uint8_t preDiv)
 
       // disable pll
       disableMainPll();
-    }
-
-    switch(aClkSource)
-    {
-    case PLL_HSE:
-      enableHSE();
-      break;
-    case PLL_HSI16:
-      enableHSI16();
-      break;
-    case PLL_MSI:
-      enableMSI();
-      break;
     }
 
     uint32_t tmp = regs->PLLCFGR;
@@ -490,6 +489,45 @@ bool THwClkTree_stm32::setSmpsClkSource(smpsSource_t aClkSource, bool fourMhz)
   else
     tmp |= (aClkSource << RCC_SMPSCR_SMPSDIV_Pos) | RCC_SMPSCR_SMPSDIV_0;
   regs->SMPSCR = tmp;
+
+  return true;
+}
+
+bool THwClkTree_stm32::setMsiSpeed(uint32_t aSpeed)
+{
+  uint32_t msiRange;
+
+  if(aSpeed < 1000000)
+  {
+    if(aSpeed < 200000)
+    {
+      msiRange = 0;
+    }
+    else
+    {
+      msiRange = (32 - __CLZ(aSpeed/100000)) >> 1;
+    }
+  }
+  else if(aSpeed < 16000000)
+  {
+    msiRange = ((32 - __CLZ(aSpeed/1000000)) >> 1) + 4;
+  }
+  else
+  {
+    msiRange = ((aSpeed - 16000000)/8000000) + 8;
+  }
+
+  msiRange <<= RCC_CR_MSIRANGE_Pos;
+
+  uint32_t tmp = regs->CR;
+  if(tmp & RCC_CR_MSION)
+  {
+    while(!(tmp & RCC_CR_MSIRDY))
+      tmp = regs->CR;
+  }
+  tmp &= ~RCC_CR_MSIRANGE;
+  tmp |= msiRange;
+  regs->CR = tmp;
 
   return true;
 }
@@ -975,6 +1013,34 @@ bool THwClkTree_stm32::hseCapTune(uint32_t capVal)
     }
   }
   return true;
+}
+
+bool THwClkTree_stm32::loadHseTune()
+{
+  typedef struct PACKED__
+  {
+    uint8_t   bd_address[6];
+    uint8_t   hse_tuning;
+    uint8_t   id;
+  } OTP_ID0_t;
+
+  OTP_ID0_t *p_id = (OTP_ID0_t*)(OTP_AREA_END_ADDR - 7);
+  uint8_t otpId = 0;
+
+  // each OTP block have 8Byte, the OTP is filled from lowest address to top address
+  // we want the most recent entry so we search from back to front
+  // at the highest address of each block is used as OTP id, we search the OTP id 0 for
+  // manufacture tuned hse cap values for STM32WB5MMG
+  while( ( p_id->id != otpId) && ( p_id != (OTP_ID0_t*)OTP_AREA_BASE) )
+  {
+    p_id--;
+  }
+
+  if(p_id->id == otpId)
+  {
+    return hseCapTune(p_id->hse_tuning);
+  }
+  return false;
 }
 
 bool THwClkTree_stm32::disableUnusedClk()
