@@ -23,6 +23,7 @@ public:
   {
     regs = pHsem;
     RCC->AHB3ENR |= RCC_AHB3ENR_HSEMEN;
+    EXTI->IMR2 |= EXTI_IMR2_IM38;
     return true;
   }
 

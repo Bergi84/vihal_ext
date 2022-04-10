@@ -155,4 +155,12 @@ public:
 
 #define HWIPCC_IMPL THwIpcc_stm32
 
+
+#define LL_IPCC_CHANNEL_1 THwIpcc_stm32::CH_1
+#define LL_IPCC_CHANNEL_2 THwIpcc_stm32::CH_2
+#define LL_IPCC_CHANNEL_3 THwIpcc_stm32::CH_3
+#define LL_IPCC_CHANNEL_4 THwIpcc_stm32::CH_4
+#define LL_IPCC_CHANNEL_5 THwIpcc_stm32::CH_5
+#define LL_IPCC_CHANNEL_6 THwIpcc_stm32::CH_5
+
 #endif /* HWRTC_STM32_H_ */
