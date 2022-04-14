@@ -54,7 +54,7 @@ public:
   // create a new  timer, if timer is expired the time server calls the aCb function
   // with aObjP as first argument, aCb should as short as possible because it is called
   // in interrupt context inside critical section
-  bool create(uint8_t &aTimerID, void (TCbClass::*aPMFunc)(THwRtc::time_t time), TCbClass* aPObj, bool aRepeat);
+  bool create(uint8_t &aTimerID, TCbClass* aPObj, void (TCbClass::*aPMFunc)(THwRtc::time_t time), bool aRepeat);
   bool create(uint8_t &aTimerID, void (*aPFunc)(THwRtc::time_t time), bool aRepeat);
   bool remove(uint8_t aTimerID);
   bool start(uint8_t aTimerID, uint32_t aMsecTimeout);

@@ -37,6 +37,10 @@ public:
   volatile uint32_t CptReceiveNotifyFromM0;
 
   struct ZigBeeT *zb;
+  bool initDone;
+  bool configDone;
+
+  TZigbee_stm32wb();
 
   bool init();
   bool service();

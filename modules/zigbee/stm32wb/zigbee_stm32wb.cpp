@@ -27,7 +27,9 @@ PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::NotifRequestBuffer
 // hw.h interface definitions
 extern "C" {
   void HW_IPCC_Init()
-  {gZigbee.ipcc.init();}
+  {
+    gZigbee.ipcc.init();
+  }
 
   void HW_IPCC_SYS_Init()
   {
@@ -60,15 +62,51 @@ extern "C" {
   }
 
   void cbSysStatusNot( SHCI_TL_CmdStatus_t status )
-  {gZigbee.sysStatusNot(status);}
+  {
+    gZigbee.sysStatusNot(status);
+  }
 
   void cbSysUserEvtRx( void * pPayload )
-  {gZigbee.sysUserEvtRx(pPayload);}
+  {
+    gZigbee.sysUserEvtRx(pPayload);
+  }
 
   void shci_notify_asynch_evt(void* pdata)
   {
     gZigbee.evtShciAsync = true;
   }
+
+  void ZIGBEE_CmdTransfer(void)
+  {
+
+  }
+
+  Zigbee_Cmd_Request_t* ZIGBEE_Get_OTCmdPayloadBuffer(void)
+  {
+
+  }
+
+  Zigbee_Cmd_Request_t* ZIGBEE_Get_OTCmdRspPayloadBuffer(void)
+  {
+
+  }
+
+  Zigbee_Cmd_Request_t* ZIGBEE_Get_NotificationPayloadBuffer(void)
+  {
+
+  }
+
+  Zigbee_Cmd_Request_t* ZIGBEE_Get_M0RequestPayloadBuffer(void)
+  {
+
+  }
+
+}
+
+TZigbee_stm32wb::TZigbee_stm32wb()
+{
+  initDone = false;
+  configDone = false;
 }
 
 bool TZigbee_stm32wb::init()
@@ -83,7 +121,7 @@ bool TZigbee_stm32wb::init()
   SHci_Tl_Init_Conf.StatusNotCallBack = cbSysStatusNot;
   shci_init(cbSysUserEvtRx, (void*) &SHci_Tl_Init_Conf);
 
-
+  // todo: implement rest of appe_Tl_Init( void )
 
   return true;
 }
@@ -144,8 +182,9 @@ void TZigbee_stm32wb::initStack()
 
   TRACECPU1("init stack layers\n")
 
-//  zb = ZbInit(0U, NULL, NULL);
+  zb = ZbInit(0U, NULL, NULL);
 
+  initDone = true;
 }
 
 void TZigbee_stm32wb::checkWirelessFwInfo()

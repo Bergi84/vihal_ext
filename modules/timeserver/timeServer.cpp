@@ -32,7 +32,7 @@ bool TTimerServer::init(THwRtc* aRtc)
   return true;
 }
 
-bool TTimerServer::create(uint8_t &aTimerID, void (TCbClass::*aPMFunc)(THwRtc::time_t time), TCbClass* aPObj, bool aRepeat)
+bool TTimerServer::create(uint8_t &aTimerID, TCbClass* aPObj, void (TCbClass::*aPMFunc)(THwRtc::time_t time), bool aRepeat)
 {
   for(int i = 0; i < TS_MAXTIMERS; i++)
   {
