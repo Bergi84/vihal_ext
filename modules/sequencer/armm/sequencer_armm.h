@@ -8,6 +8,8 @@
 #ifndef SEQUENCER_ARMM_H_
 #define SEQUENCER_ARMM_H_
 
+#include "platform.h"
+
 #ifndef SEQ_MAXTASKS
   #define SEQ_MAXTASKS 32
 #endif
@@ -16,20 +18,26 @@
   #define SEQ_MAXSTACKS 4
 #endif
 
+extern uint32_t __Main_Stack_Size;
+extern uint32_t __stack;
+
 #include "platform.h"
 
-class sequencer
+class TSequencer
 {
 private:
   typedef struct
   {
-    uint32_t sp;
+    void* sp;
     bool* event;
+    uint8_t id;
   }
   stackRec_t;
 
+  uint8_t* stackBaseAdr;
+  uint32_t stackSize;
   stackRec_t stacks[SEQ_MAXSTACKS];
-  stackRec_t *aktivStack;
+  volatile uint8_t aktivStackInd;
 
   typedef struct
   {
@@ -41,25 +49,38 @@ private:
   }
   taskCbRec_t;
 
-  taskCbRec_t taskCb[SEQ_MAXTASKS];
+  taskCbRec_t tasks[SEQ_MAXTASKS];
+  taskCbRec_t idleCb;
 
+  static constexpr uint8_t invalidId = -1;
   static constexpr uint32_t arrayLen = ((SEQ_MAXTASKS - 1)/32 + 1);
   uint32_t usedId[arrayLen];
   uint32_t aktivTask[arrayLen];
   uint32_t queuedTask[arrayLen];
 
-public:
-  void init();
-  void addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMFunc)());
-  void delTaks(uint8_t aSeqID);
+  uint8_t schedLastStackInd;
+  uint8_t schedLastTaskId;
 
-  void queueTask(uint8_t aSeqID);
+public:
+  bool init();
+  bool addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMFunc)());
+  bool addTask(uint8_t &aSeqID, void (*aMFunc)());
+  bool delTask(uint8_t aSeqID);
+  bool queueTask(uint8_t aSeqID);
+
+  bool setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)());
+  bool setIdleFunc(void (*aMFunc)());
+
+  // this function starts the idle loop and never returns
+  void start();
 
   void waitForEvent(bool* aEvent);
 
 private:
-  void storeStack();
-  void loadStack();
+  void startTask(uint8_t stackInd, taskCbRec_t *task);
+  void pauseTask();
+  void resumeTask(stackRec_t *stacks);
+  void scheduler();
 };
 
 
