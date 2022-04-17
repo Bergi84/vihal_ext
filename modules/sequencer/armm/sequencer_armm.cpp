@@ -27,6 +27,9 @@ bool TSequencer::init()
   schedLastStackInd = 0;
   schedLastTaskId = 0;
 
+  idleCb.pObj = 0;
+  idleCb.pFunc = 0;
+
   return true;
 }
 
@@ -48,6 +51,8 @@ bool TSequencer::addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMF
         else
         {
           usedId[i] |= mask;
+          aktivTask[i] &= ~mask;
+          queuedTask[i] &= ~mask;
           tasks[tmpID].pObj = aPObj;
           tasks[tmpID].pMFunc = aPMFunc;
           aSeqID = tmpID;
@@ -59,7 +64,7 @@ bool TSequencer::addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMF
   return false;
 }
 
-bool TSequencer::addTask(uint8_t &aSeqID, void (*aMFunc)())
+bool TSequencer::addTask(uint8_t &aSeqID, void (*aPFunc)())
 {
   for(int i = 0; i < arrayLen; i++)
   {
@@ -77,8 +82,10 @@ bool TSequencer::addTask(uint8_t &aSeqID, void (*aMFunc)())
         else
         {
           usedId[i] |= mask;
+          aktivTask[i] &= ~mask;
+          queuedTask[i] &= ~mask;
           tasks[tmpID].pObj = 0;
-          tasks[tmpID].pFunc = aMFunc;
+          tasks[tmpID].pFunc = aPFunc;
           aSeqID = tmpID;
           return true;
         }
@@ -98,6 +105,31 @@ bool TSequencer::delTask(uint8_t aSeqID)
   return true;
 }
 
+bool TSequencer::killTask(uint8_t aSeqID)
+{
+  for(int i = 0; i < SEQ_MAXTASKS; i++)
+  {
+    if(__get_IPSR() & 0x01FF == 0)
+    {
+      if(stacks[i].id == aSeqID)
+      {
+        stacks[i].id = 0;
+        stacks[i].event = 0;
+        if(i == aktivStackInd)
+        {
+          scheduler();
+        }
+        return true;
+      }
+    }
+    else
+    {
+      // todo: implement kill from irq
+    }
+  }
+  return false;
+}
+
 bool TSequencer::queueTask(uint8_t aSeqID)
 {
   uint32_t i = aSeqID >> 5;
@@ -113,63 +145,80 @@ bool TSequencer::queueTask(uint8_t aSeqID)
   return false;
 }
 
-void TSequencer::storeStack(void* oldSp, void* newSp)
+void TSequencer::waitForEvent(bool* aEvt)
 {
-  __asm volatile
-  (
-      // store MSP (Main stack pointer to r0
-      "MRS r0, MSP                      \n"
-
-      // check if FPU was used
-      "MRS r1, CONTROL                  \n" // store CONTROL to r1
-      "stmdb r0!, {r1}                    \n" // store CONTROL on stack for restore of task
-      "tst r1, 0x04                     \n" // and of r1 and 0x04, only updates N and Z flags
-
-      // if fpu was used store all necessary fpu register
-      "ittt eq                          \n"
-      "vmrseq r2, fpscr                 \n"
-      "stmdbeq r0!, {r2}                  \n"
-      "vstmdbeq r0!, {s0-s31}           \n"
-
-      // store core registers
-      "stmdb r0!, {r4-r11, r14}         \n"
-
-      // store old stack pointer to oldSp
-      "str r0, [%0]                     \n"
-
-      // clear fpu used flag
-      "bic r1, r1, 0x04                 \n"
-      "MSR CONTROL, r1                  \n"
-
-      // load new stack pointer to newSp
-      "ldr r0, [%1]                     \n"
-      "MSR MSP, r0                      \n"
-      "isb                              \n"
-
-      : // no output register
-      : "r" (oldSp), "r" (newSp)
-      :
-  );
+  pauseTask(aEvt);
 }
 
-void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
+bool TSequencer::setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
 {
+  idleCb.pObj = aPObj;
+  idleCb.pMFunc = aPMFunc;
+
+  return true;
+}
+
+bool TSequencer::setIdleFunc(void (*aPFunc)())
+{
+  idleCb.pObj = 0;
+  idleCb.pFunc = aPFunc;
+
+  return true;
+}
+
+inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
+{
+  void *sp = stacks[stackInd].sp;
+  uint32_t clobber;
+
+  // switch to new stack
+  __asm volatile
+  (
+    // clear fpu used flag
+    "MRS %1, CONTROL                \n"
+    "bic %1, %1, 0x04               \n"
+    "MSR CONTROL, %1                \n"
+
+    // load new stack pointer
+    "cpsid i                        \n"
+    "MSR MSP, %0                    \n"
+    "isb                            \n"
+    "cpsie i                        \n"
+
+    : "+&r" (clobber) // no output parameter
+    : "r" (sp)
+    : "memory"
+  );
+
   aktivStackInd = stackInd;
   stackRec_t* stack = &stacks[stackInd];
-  taskCbRec_t* task = &tasks[taskInd];
 
+  // store stack context
   stack->sp = (void*)(((uint32_t)stackBaseAdr) - stackSize * stackInd);
   stack->event = 0;
   stack->id = taskInd;
 
+  // set task as active
   uint32_t i = taskInd >> 5;
   uint32_t j = taskInd & 0x1F;
-  aktivTask[i] |= 1U << j;
+  uint32_t mask = 1U << j;
+  aktivTask[i] |= mask;
+  queuedTask[i] &= ~mask;
 
-  // todo: switch to new stack
+  taskCbRec_t* task = &tasks[taskInd];
 
-  stacks[aktivStackInd].sp = 0;
+  // call task
+  if(task->pObj != 0)
+  {
+    (task->pObj->*(task->pMFunc))();
+  }
+  else
+  {
+    task->pFunc();
+  }
 
+  // set task as inactive
+  aktivTask[i] &= ~mask;
 
   // return is not allowed because the stack is not valid anymore
   // so we call the scheduler instead
@@ -177,21 +226,80 @@ void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   scheduler();
 }
 
-void TSequencer::pauseTask()
+inline void TSequencer::pauseTask(bool* evt)
 {
+  void *sp;
+  uint32_t clobber;
+
+  __asm volatile
+  (
+      // check if FPU was used
+      "MRS %0, CONTROL                  \n" // store CONTROL to r1
+      "tst %0, 0x04                     \n" // and of r1 and 0x04, only updates N and Z flags
+
+      // if fpu was used store all necessary fpu register
+      "ittt eq                          \n"
+      "vmrseq %1, fpscr                 \n"
+      "stmdbeq sp!, {%1}                \n"
+      "vstmdbeq sp!, {s0-s31}           \n"
+
+      "stmdb sp!, {%0}                  \n" // store CONTROL on stack for restore of task
+
+      // store core registers
+      "stmdb sp!, {r4-r11, r14}         \n"
+
+      // get stack pointer
+      "MRS %0, MSP                      \n"
+
+      : "+&r" (sp), "+&r" (clobber)
+      :
+      : "memory"
+  );
+
+  stackRec_t* stack = &stacks[aktivStackInd];
+  stack->sp = sp;
+  stack->event = evt;
 
   // return is not allowed because the stack holds the cpu and fpu register
   // so we call the scheduler instead
   scheduler();
 }
 
-void TSequencer::resumeTask(uint8_t stackInd)
+inline void TSequencer::resumeTask(uint8_t stackInd)
 {
   aktivStackInd = stackInd;
-  stacks[stackInd].event = 0;
+  stackRec_t* stack = &stacks[stackInd];
+  stack->event = 0;
+  void* sp = stack->sp;
 
-  // todo: restore task
+  __asm volatile
+  (
+      // todo:
+      // disable interrupts for following two instructions
 
+      // set stack pointer
+      "cpsid i                          \n"
+      "msr msp, %0                      \n"
+      "isb                              \n"
+      "cpsie i                          \n"
+
+      // load core registers
+      "ldmia sp!, {r4-r11, r14}         \n"
+      "ldmia sp!, {%0}                  \n"
+      "MSR CONTROL, %0                  \n" // restore CONTROL to r1
+      "tst %0, 0x04                     \n" // and of witch 0x04, only updates N and Z flags
+
+      // check if FPU was used
+      // and restore fpu register in necessary
+      "ittt eq                          \n"
+      "vldmiaeq sp!, {s0-s31}           \n"
+      "ldmiaeq sp!, {%0}                \n"
+      "vmsreq fpscr, %0                 \n"
+
+      : "+&r" (sp)
+      :
+      : "memory"
+  );
 }
 
 void TSequencer::scheduler()
@@ -202,28 +310,64 @@ void TSequencer::scheduler()
     // waiting tasks have always a higher priority
     uint8_t endInd = schedLastStackInd;
     uint8_t freeInd = invalidId;
-    schedLastStackInd = (schedLastStackInd == SEQ_MAXSTACKS - 1) ? 0 : schedLastStackInd + 1;
-    while(schedLastStackInd != endInd)
+    uint8_t tmpId = (endInd == SEQ_MAXSTACKS - 1) ? 0 : endInd + 1;
+    while(tmpId != endInd)
     {
-      if(stacks[schedLastStackInd].sp != 0)
+      if(stacks[tmpId].sp != 0)
       {
-        if(stacks[schedLastStackInd].event != 0 && *stacks[schedLastStackInd].event)
-          resumeTask(&stacks[schedLastStackInd]);
+        if(stacks[tmpId].event != 0 && *stacks[tmpId].event)
+        {
+          schedLastStackInd = tmpId;
+          resumeTask(tmpId);
+          continue;
+        }
       }
       else
       {
-        freeInd = schedLastStackInd;
+        freeInd = tmpId;
       }
 
-      schedLastStackInd = (schedLastStackInd == SEQ_MAXSTACKS - 1) ? 0 : schedLastStackInd + 1;
+      tmpId = (tmpId == SEQ_MAXSTACKS - 1) ? 0 : tmpId + 1;
     }
+    schedLastStackInd = tmpId;
 
-    if(schedLastStackInd != invalidId)
+    // if a free stack is available
+    // search queued task for execution
+    if(freeInd != invalidId)
     {
-      // find queued task for execution
+      endInd = schedLastTaskId;
+      tmpId = (endInd == SEQ_MAXTASKS - 1) ? 0 : endInd + 1;
+
+      while(endInd != tmpId)
+      {
+        uint32_t i = tmpId >> 5;
+        uint32_t j = tmpId & 0x1F;
+        uint32_t mask = 1U << j;
+
+        if(usedId[i] & queuedTask[i] & ~aktivTask[i] & mask)
+        {
+          schedLastTaskId = tmpId;
+          startTask(freeInd, tmpId);
+          continue;
+        }
+
+        tmpId = (tmpId == SEQ_MAXTASKS - 1) ? 0 : tmpId + 1;
+      }
 
     }
+    schedLastTaskId = tmpId;
 
     // all stacks used or nothing todo, goto low power mode
+    if(idleCb.pObj != 0)
+    {
+      (idleCb.pObj->*idleCb.pMFunc)();
+    }
+    else
+    {
+      if(idleCb.pFunc != 0)
+      {
+        idleCb.pFunc();
+      }
+    }
   }
 }

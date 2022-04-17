@@ -64,22 +64,24 @@ private:
 public:
   bool init();
   bool addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMFunc)());
-  bool addTask(uint8_t &aSeqID, void (*aMFunc)());
+  bool addTask(uint8_t &aSeqID, void (*aPFunc)());
   bool delTask(uint8_t aSeqID);
+  bool killTask(uint8_t aSeqID);
   bool queueTask(uint8_t aSeqID);
 
+  // puase calling Task until given bool becomes true
+  void waitForEvent(bool* aEvt);
+
   bool setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)());
-  bool setIdleFunc(void (*aMFunc)());
+  bool setIdleFunc(void (*aPFunc)());
 
   // this function starts the idle loop and never returns
-  void start();
-
-  void waitForEvent(bool* aEvent);
+  void startIdle() { scheduler(); };
 
 private:
-  void startTask(uint8_t stackInd, taskCbRec_t *task);
-  void pauseTask();
-  void resumeTask(stackRec_t *stacks);
+  inline void startTask(uint8_t stackInd, uint8_t taskInd);
+  inline void pauseTask(bool* evt);
+  inline void resumeTask(uint8_t stackInd);
   void scheduler();
 };
 

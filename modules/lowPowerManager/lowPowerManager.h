@@ -14,7 +14,7 @@
   #define LPM_MAXIDS 32
 #endif
 
-class TLowPowerManger
+class TLowPowerManger : public TCbClass
 {
 public:
   static constexpr uint32_t arrayLen = ((LPM_MAXIDS - 1)/32 + 1);
