@@ -60,6 +60,7 @@ private:
 
   uint8_t schedLastStackInd;
   uint8_t schedLastTaskId;
+  uint8_t highestTaskId;
 
 public:
   bool init();
@@ -79,9 +80,9 @@ public:
   void startIdle() { scheduler(); };
 
 private:
-  inline void startTask(uint8_t stackInd, uint8_t taskInd);
-  inline void pauseTask(bool* evt);
-  inline void resumeTask(uint8_t stackInd);
+  void startTask(uint8_t stackInd, uint8_t taskInd);
+  void resumeTask(uint8_t stackInd);
+  bool switchTask(void **sp, bool resume);
   void scheduler();
 };
 

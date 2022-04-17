@@ -254,6 +254,7 @@ public:
 
   bool getCpu1ClkSpeed(uint32_t &aClkSpeed);
   bool getCpu2ClkSpeed(uint32_t &aClkSpeed);
+  bool getSysClkSpeed(uint32_t &aClkSpeed);
   bool getFlashSpeed(uint32_t &aClkSpeed);
   bool getPeriClkSpeed(void * aBaseAdr, uint32_t &aSpeed);
 

@@ -26,6 +26,7 @@ bool TSequencer::init()
 
   schedLastStackInd = 0;
   schedLastTaskId = 0;
+  highestTaskId = 0;
 
   idleCb.pObj = 0;
   idleCb.pFunc = 0;
@@ -56,6 +57,9 @@ bool TSequencer::addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMF
           tasks[tmpID].pObj = aPObj;
           tasks[tmpID].pMFunc = aPMFunc;
           aSeqID = tmpID;
+          if(highestTaskId < tmpID)
+            highestTaskId = tmpID;
+
           return true;
         }
       }
@@ -87,6 +91,9 @@ bool TSequencer::addTask(uint8_t &aSeqID, void (*aPFunc)())
           tasks[tmpID].pObj = 0;
           tasks[tmpID].pFunc = aPFunc;
           aSeqID = tmpID;
+          if(highestTaskId < tmpID)
+            highestTaskId = tmpID;
+
           return true;
         }
       }
@@ -101,6 +108,18 @@ bool TSequencer::delTask(uint8_t aSeqID)
   uint32_t j = aSeqID & 0x1F;
 
   usedId[i] &= ~(1U << j);
+
+  uint8_t highestId = 0;
+
+  for(int i = 0; i < arrayLen; i++)
+  {
+    if(usedId[i] != 0)
+    {
+      highestId = (31 - __CLZ(usedId[i])) + i*32;
+    }
+  }
+
+  highestTaskId = highestId;
 
   return true;
 }
@@ -147,7 +166,12 @@ bool TSequencer::queueTask(uint8_t aSeqID)
 
 void TSequencer::waitForEvent(bool* aEvt)
 {
-  pauseTask(aEvt);
+  stackRec_t* stack = &stacks[aktivStackInd];
+  stack->event = aEvt;
+  if(switchTask(&stack->sp, true))
+  {
+    scheduler();
+  }
 }
 
 bool TSequencer::setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
@@ -168,20 +192,20 @@ bool TSequencer::setIdleFunc(void (*aPFunc)())
 
 inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
 {
-  void *sp = stacks[stackInd].sp;
+  void *sp = (void*)(((uint32_t)stackBaseAdr) - stackSize * stackInd);
   uint32_t clobber;
 
   // switch to new stack
   __asm volatile
   (
     // clear fpu used flag
-    "MRS %1, CONTROL                \n"
-    "bic %1, %1, 0x04               \n"
-    "MSR CONTROL, %1                \n"
+    "MRS %0, CONTROL                \n"
+    "bic %0, %0, 0x04               \n"
+    "MSR CONTROL, %0                \n"
 
     // load new stack pointer
     "cpsid i                        \n"
-    "MSR MSP, %0                    \n"
+    "MSR MSP, %1                    \n"
     "isb                            \n"
     "cpsie i                        \n"
 
@@ -194,7 +218,7 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   stackRec_t* stack = &stacks[stackInd];
 
   // store stack context
-  stack->sp = (void*)(((uint32_t)stackBaseAdr) - stackSize * stackInd);
+  stack->sp = stacks[stackInd].sp;
   stack->event = 0;
   stack->id = taskInd;
 
@@ -219,6 +243,7 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
 
   // set task as inactive
   aktivTask[i] &= ~mask;
+  stack->sp = 0;
 
   // return is not allowed because the stack is not valid anymore
   // so we call the scheduler instead
@@ -226,80 +251,79 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   scheduler();
 }
 
-inline void TSequencer::pauseTask(bool* evt)
-{
-  void *sp;
-  uint32_t clobber;
-
-  __asm volatile
-  (
-      // check if FPU was used
-      "MRS %0, CONTROL                  \n" // store CONTROL to r1
-      "tst %0, 0x04                     \n" // and of r1 and 0x04, only updates N and Z flags
-
-      // if fpu was used store all necessary fpu register
-      "ittt eq                          \n"
-      "vmrseq %1, fpscr                 \n"
-      "stmdbeq sp!, {%1}                \n"
-      "vstmdbeq sp!, {s0-s31}           \n"
-
-      "stmdb sp!, {%0}                  \n" // store CONTROL on stack for restore of task
-
-      // store core registers
-      "stmdb sp!, {r4-r11, r14}         \n"
-
-      // get stack pointer
-      "MRS %0, MSP                      \n"
-
-      : "+&r" (sp), "+&r" (clobber)
-      :
-      : "memory"
-  );
-
-  stackRec_t* stack = &stacks[aktivStackInd];
-  stack->sp = sp;
-  stack->event = evt;
-
-  // return is not allowed because the stack holds the cpu and fpu register
-  // so we call the scheduler instead
-  scheduler();
-}
-
-inline void TSequencer::resumeTask(uint8_t stackInd)
+void TSequencer::resumeTask(uint8_t stackInd)
 {
   aktivStackInd = stackInd;
   stackRec_t* stack = &stacks[stackInd];
   stack->event = 0;
-  void* sp = stack->sp;
 
-  __asm volatile
-  (
-      // todo:
-      // disable interrupts for following two instructions
+  switchTask(&stack->sp, false);
+}
 
-      // set stack pointer
-      "cpsid i                          \n"
-      "msr msp, %0                      \n"
-      "isb                              \n"
-      "cpsie i                          \n"
+bool TSequencer::switchTask(void **sp, bool pause)
+{
+  uint32_t clobber1;
+  uint32_t clobber2;
 
-      // load core registers
-      "ldmia sp!, {r4-r11, r14}         \n"
-      "ldmia sp!, {%0}                  \n"
-      "MSR CONTROL, %0                  \n" // restore CONTROL to r1
-      "tst %0, 0x04                     \n" // and of witch 0x04, only updates N and Z flags
+  if(pause)
+  {
+    __asm volatile
+    (
+        // check if FPU was used
+        "MRS %0, CONTROL                  \n" // store CONTROL to r1
+        "tst %0, #0x04                    \n" // and of r1 and 0x04, Z=1 if result is zero
 
-      // check if FPU was used
-      // and restore fpu register in necessary
-      "ittt eq                          \n"
-      "vldmiaeq sp!, {s0-s31}           \n"
-      "ldmiaeq sp!, {%0}                \n"
-      "vmsreq fpscr, %0                 \n"
+        // if fpu was used store all necessary fpu register
+        "ittt ne                          \n"
+        "vmrsne %1, fpscr                 \n"
+        "stmdbne sp!, {%1}                \n"
+        "vstmdbne sp!, {s0-s31}           \n"
 
-      : "+&r" (sp)
-      :
-      : "memory"
-  );
+        "stmdb sp!, {%0}                  \n" // store CONTROL on stack for restore of task
+
+        // store core registers
+        "stmdb sp!, {r4-r11, r14}         \n"
+
+        // get stack pointer
+        "mrs %1, MSP                      \n"
+        "str %1, [%2]                     \n"
+
+        : "+&r" (clobber1), "+&r" (clobber2)
+        : "r" (sp)
+        : "memory"
+    );
+  }
+  else
+  {
+    __asm volatile
+    (
+        // set stack pointer
+        "cpsid i                          \n"
+        "ldr %1, [%2]                     \n"
+        "msr msp, %1                      \n"
+        "isb                              \n"
+        "cpsie i                          \n"
+
+        // load core registers
+        "ldmia sp!, {r4-r11, r14}         \n"
+        "ldmia sp!, {%0}                  \n"
+        "MSR CONTROL, %0                  \n" // restore CONTROL to r1
+        "tst %0, 0x04                     \n" // and 0x04, only updates N and Z flags
+
+        // check if FPU was used
+        // and restore fpu register in necessary
+        "ittt ne                          \n"
+        "vldmiane sp!, {s0-s31}           \n"
+        "ldmiane sp!, {%0}                \n"
+        "vmsrne fpscr, %0                 \n"
+
+        : "+&r" (clobber1), "+&r" (clobber1)
+        : "r" (sp)
+        : "memory"
+    );
+  }
+
+  return pause;
 }
 
 void TSequencer::scheduler()
@@ -308,11 +332,14 @@ void TSequencer::scheduler()
   {
     // check waiting tasks and search free stack for new task
     // waiting tasks have always a higher priority
-    uint8_t endInd = schedLastStackInd;
     uint8_t freeInd = invalidId;
-    uint8_t tmpId = (endInd == SEQ_MAXSTACKS - 1) ? 0 : endInd + 1;
-    while(tmpId != endInd)
+    uint8_t endInd = schedLastStackInd;
+    uint8_t tmpId = endInd;
+
+    do
     {
+      tmpId = (tmpId == SEQ_MAXSTACKS - 1) ? 0 : tmpId + 1;
+
       if(stacks[tmpId].sp != 0)
       {
         if(stacks[tmpId].event != 0 && *stacks[tmpId].event)
@@ -326,9 +353,8 @@ void TSequencer::scheduler()
       {
         freeInd = tmpId;
       }
-
-      tmpId = (tmpId == SEQ_MAXSTACKS - 1) ? 0 : tmpId + 1;
     }
+    while(tmpId != endInd);
     schedLastStackInd = tmpId;
 
     // if a free stack is available
@@ -336,10 +362,12 @@ void TSequencer::scheduler()
     if(freeInd != invalidId)
     {
       endInd = schedLastTaskId;
-      tmpId = (endInd == SEQ_MAXTASKS - 1) ? 0 : endInd + 1;
+      tmpId = endInd;
 
-      while(endInd != tmpId)
+      do
       {
+        tmpId = (tmpId == highestTaskId) ? 0 : tmpId + 1;
+
         uint32_t i = tmpId >> 5;
         uint32_t j = tmpId & 0x1F;
         uint32_t mask = 1U << j;
@@ -351,8 +379,8 @@ void TSequencer::scheduler()
           continue;
         }
 
-        tmpId = (tmpId == SEQ_MAXTASKS - 1) ? 0 : tmpId + 1;
       }
+      while (endInd != tmpId);
 
     }
     schedLastTaskId = tmpId;

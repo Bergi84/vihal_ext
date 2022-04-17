@@ -1450,6 +1450,15 @@ bool THwClkTree_stm32::getCpu2ClkSpeed(uint32_t &aClkSpeed)
   return true;
 }
 
+bool THwClkTree_stm32::getSysClkSpeed(uint32_t &aClkSpeed)
+{
+  updateClkTree();
+
+  aClkSpeed = sysSpeed;
+
+  return true;
+}
+
 bool THwClkTree_stm32::getFlashSpeed(uint32_t &aClkSpeed)
 {
   updateClkTree();
