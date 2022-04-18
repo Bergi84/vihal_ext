@@ -66,7 +66,7 @@ public:
   bool setTxCb(channel_t aChannel, TCbClass* mPObj, void (TCbClass::*aPMFunc)());
   bool setTxCb(channel_t aChannel, void (*aPFunc)());
 
-  inline bool diableTxChannel(channel_t aChannel)
+  inline bool disableTxChannel(channel_t aChannel)
   {
     regs->C1MR |= ((int32_t) aChannel) << IPCC_C1MR_CH1FM_Pos;
     return true;
@@ -94,7 +94,7 @@ public:
 
   inline bool getTxPending(uint32_t &channels)
   {
-    channels = regs->C1TOC2SR & ((~regs->C1MR) >> IPCC_C1MR_CH1FM_Pos);
+    channels = (~regs->C1TOC2SR) & ((~regs->C1MR) >> IPCC_C1MR_CH1FM_Pos);
     return true;
   }
 
@@ -114,7 +114,7 @@ public:
   {
     uint32_t rxPendCh;
     getRxPending(rxPendCh);
-    for(uint32_t i = (uint32_t)CH_1; i <= (uint32_t)CH_6; i << 1)
+    for(uint32_t i = (uint32_t)CH_1; i <= (uint32_t)CH_6; i <<= 1)
     {
       if(rxPendCh & i)
       {
@@ -135,7 +135,7 @@ public:
   {
     uint32_t txPendCh;
     getTxPending(txPendCh);
-    for(uint32_t i = (uint32_t)CH_1; i <= (uint32_t)CH_6; i << 1)
+    for(uint32_t i = (uint32_t)CH_1; i <= (uint32_t)CH_6; i <<= 1)
     {
       if(txPendCh & i)
       {

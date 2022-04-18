@@ -172,6 +172,7 @@ void TSequencer::waitForEvent(bool* aEvt)
   {
     scheduler();
   }
+  *aEvt = false;
 }
 
 bool TSequencer::setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
