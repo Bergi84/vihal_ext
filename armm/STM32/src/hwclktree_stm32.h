@@ -179,6 +179,10 @@ public:
   // LSI2: low drift, factory calibration clock
   bool setRtcClkSource(rtcSource_t aClkSource);
 
+  // set RF wake up clock source, with default value
+  // the RF system can not start
+  bool setRfWakeupClkSource(rfwuSource_t aClkSource);
+
   // select clock source for clock output
   // if does not enable clocks if a disabled clock source is selected
   // preDiv can a value between 1 and 32, only exponents of 2 are supported

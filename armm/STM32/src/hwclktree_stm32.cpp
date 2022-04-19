@@ -268,6 +268,30 @@ bool THwClkTree_stm32::setRtcClkSource(rtcSource_t aClkSource)
   return true;
 }
 
+bool THwClkTree_stm32::setRfWakeupClkSource(rfwuSource_t aClkSource)
+{
+  switch(aClkSource)
+  {
+  case RFWU_OFF:
+    break;
+
+  case RFWU_LSE:
+    enableLSE();
+    break;
+
+  case RFWU_HSE:
+    enableHSE();
+    break;
+  }
+
+  uint32_t tmp = regs->CSR;
+  tmp &= ~RCC_CSR_RFWKPSEL;
+  tmp |= aClkSource << RCC_CSR_RFWKPSEL_Pos;
+  regs->CSR = tmp;
+
+  return true;
+}
+
 bool THwClkTree_stm32::setOutClkSource(clkOutSource_t aClkSource, uint8_t preDiv)
 {
   uint32_t tmp = regs->CFGR;

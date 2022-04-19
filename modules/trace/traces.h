@@ -63,20 +63,25 @@ public:
   static constexpr uint32_t strCpuIndent = 6;
 
   typedef enum {
-   LA_NONE,
-   LA_CPU1,
-   LA_CPU2
-  } lastAktiv_t;
-  lastAktiv_t lastAktiv;
+   TA_NONE,
+   TA_CPU1,
+   TA_CPU2
+  } aktiv_t;
+  aktiv_t lastAktiv;
   bool intend;
 
   bool init(THwUart* aUart = 0, TLowPowerManger* aLpm = 0, TSequencer* aSeq = 0);
 
   void traceCpu1(const char* format, ...);
   void traceCpu2(const char* format, ...);
-  void traceCpu2(uint32_t aLen, const char* aBuf);
+
+  void vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa);
+
+  void printBuf(const char* aBuf, uint32_t aLen);
 
   void service();
+
+  void flush();
 };
 
 extern TTrace gTrace;

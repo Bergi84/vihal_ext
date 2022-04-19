@@ -31,15 +31,15 @@ bool THwIpcc_stm32::init()
 
 bool THwIpcc_stm32::enableRxChannel(channel_t aChannel, TCbClass* mPObj, void (TCbClass::*aPMFunc)())
 {
-  enableRxChannel(aChannel);
   setRxCb(aChannel, mPObj, aPMFunc);
+  enableRxChannel(aChannel);
   return true;
 }
 
 bool THwIpcc_stm32::enableRxChannel(channel_t aChannel, void (*aPFunc)())
 {
-  enableRxChannel(aChannel);
   setRxCb(aChannel, aPFunc);
+  enableRxChannel(aChannel);
   return true;
 }
 
@@ -62,15 +62,15 @@ bool THwIpcc_stm32::setRxCb(channel_t aChannel, void (*aPFunc)())
 
 bool THwIpcc_stm32::enableTxChannel(channel_t aChannel, TCbClass* mPObj, void (TCbClass::*aPMFunc)())
 {
-  enableTxChannel(aChannel);
   setTxCb(aChannel, mPObj, aPMFunc);
+  enableTxChannel(aChannel);
   return true;
 }
 
 bool THwIpcc_stm32::enableTxChannel(channel_t aChannel, void (*aPFunc)())
 {
-  enableTxChannel(aChannel);
   setTxCb(aChannel, aPFunc);
+  enableTxChannel(aChannel);
   return true;
 }
 

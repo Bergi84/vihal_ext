@@ -19,9 +19,12 @@ public:
 
   HSEM_TypeDef* regs;
 
-  bool init(HSEM_TypeDef* pHsem)
+  bool init(HSEM_TypeDef* pHsem = 0)
   {
-    regs = pHsem;
+    if(pHsem)
+      regs = pHsem;
+    else
+      regs = HSEM;
     RCC->AHB3ENR |= RCC_AHB3ENR_HSEMEN;
     EXTI->IMR2 |= EXTI_IMR2_IM38;
     return true;

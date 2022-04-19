@@ -18,12 +18,14 @@
 TZigbee_stm32wb gZigbee;
 
 // static member variables definitions
+PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::EvtPool[POOL_SIZE];
 PLACE_IN_SECTION("MB_MEM2") ALIGN(4) TL_CmdPacket_t TZigbee_stm32wb::SystemCmdBuffer;
+PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::SystemSpareEvtBuffer[sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255U];
 PLACE_IN_SECTION("MB_MEM2") ALIGN(4) TL_CmdPacket_t TZigbee_stm32wb::OtCmdBuffer;
 PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::NotifRspEvtBuffer[sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255U];
 PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::NotifRequestBuffer[sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255U];
-PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::SystemSpareEvtBuffer[sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255U];
-PLACE_IN_SECTION("MB_MEM2") ALIGN(4) uint8_t TZigbee_stm32wb::EvtPool[POOL_SIZE];
+
+
 
 extern "C" void IRQ_Handler_44() {gZigbee.ipcc.rxIrqHandler();}
 extern "C" void IRQ_Handler_45() {gZigbee.ipcc.txIrqHandler();}
@@ -118,7 +120,7 @@ extern "C" {
 
   void TL_TRACES_EvtReceived( TL_EvtPacket_t * hcievt )
   {
-    gTrace.traceCpu2((uint32_t)hcievt->evtserial.evt.plen - 2U, (const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload);
+    gTrace.printBuf((const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload, (uint32_t)hcievt->evtserial.evt.plen - 2U);
     TL_MM_EvtDone( hcievt );
   }
 }
@@ -215,6 +217,7 @@ bool TZigbee_stm32wb::init(TSequencer* aSeq, THwPwr* aPwr)
 
   seq = aSeq;
   pwr = aPwr;
+  sema.init();
 
   TL_Init();
 
@@ -230,7 +233,7 @@ bool TZigbee_stm32wb::init(TSequencer* aSeq, THwPwr* aPwr)
   SHci_Tl_Init_Conf.StatusNotCallBack = cbSysStatusNot;
   shci_init(cbSysUserEvtRx, (void*) &SHci_Tl_Init_Conf);
 
-  TL_MM_Config_t tl_mm_config;
+  TL_MM_Config_t tl_mm_config = {0};
   tl_mm_config.p_BleSpareEvtBuffer = 0;
   tl_mm_config.p_SystemSpareEvtBuffer = SystemSpareEvtBuffer;
   tl_mm_config.p_AsynchEvtPool = EvtPool;
@@ -296,7 +299,7 @@ void TZigbee_stm32wb::initStack()
 
   SHCI_C2_ZIGBEE_Init();
 
-  zb = ZbInit(0U, NULL, NULL);
+//  zb = ZbInit(0U, NULL, NULL);
 
   TRACECPU1("init of wireless stack done\r\n")
 

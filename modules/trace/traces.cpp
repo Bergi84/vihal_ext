@@ -12,6 +12,31 @@ TTrace gTrace;
 constexpr const char TTrace::strCpu1[];
 constexpr const char TTrace::strCpu2[];
 
+extern "C"
+{
+  void cTraceCpu2(const char* format, ...)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+
+    gTrace.vprintf(TTrace::TA_CPU2, format, argptr);
+    va_end(argptr);
+  }
+
+  void cTraceBufferCpu2(const void *pBuffer, uint32_t u32Length, const char *strFormat, ...)
+  {
+    va_list vaArgs;
+    uint32_t u32Index;
+    va_start(vaArgs, strFormat);
+    gTrace.vprintf(TTrace::TA_CPU2, strFormat, vaArgs);
+    va_end(vaArgs);
+    for (u32Index = 0; u32Index < u32Length; u32Index ++)
+    {
+      gTrace.traceCpu2(" %02X", ((const uint8_t *) pBuffer)[u32Index]);
+    }
+  }
+}
+
 bool TTrace::init(THwUart* aUart, TLowPowerManger* aLpm, TSequencer* aSeq)
 {
   if(aUart == 0)
@@ -34,7 +59,7 @@ bool TTrace::init(THwUart* aUart, TLowPowerManger* aLpm, TSequencer* aSeq)
   bufWInd = 0;
   bufRInd = 0;
 
-  lastAktiv = LA_NONE;
+  lastAktiv = TA_NONE;
 
   return true;
 }
@@ -44,51 +69,8 @@ void TTrace::traceCpu1(const char* format, ...)
   va_list argptr;
   va_start(argptr, format);
 
-  char locBuf[128];
-  uint32_t pos = mp_vsnprintf(&locBuf[0], 128, format, argptr);
+  this->vprintf(TA_CPU1, format, argptr);
   va_end(argptr);
-
-  TCriticalSection cSec(true);
-
-  if(lastAktiv != LA_CPU1)
-  {
-    lastAktiv = LA_CPU1;
-    for(int i = 0; i < strCpu1Len; i++)
-    {
-      buf[bufWInd] = strCpu1[i];
-      bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-    }
-    intend = false;
-  }
-
-  for(int i = 0; i < pos; i++)
-  {
-    if(intend && (locBuf[i] != '\r'))
-    {
-      intend = false;
-
-      for(int j = 0; j < strCpuIndent; j++)
-      {
-        buf[bufWInd] = ' ';
-        bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-      }
-    }
-
-    buf[bufWInd] = locBuf[i];
-    bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-
-    if(locBuf[i] == '\n')
-    {
-      intend = true;
-    }
-  }
-
-  cSec.leave();
-
-  if(seq != 0)
-  {
-    seq->queueTask(seqId);
-  }
 }
 
 void TTrace::traceCpu2(const char* format, ...)
@@ -96,96 +78,62 @@ void TTrace::traceCpu2(const char* format, ...)
   va_list argptr;
   va_start(argptr, format);
 
-  char locBuf[128];
-  uint32_t pos = mp_vsnprintf(&locBuf[0], 128, format, argptr);
+  this->vprintf(TA_CPU2, format, argptr);
   va_end(argptr);
-
-  TCriticalSection cSec(true);
-
-  if(lastAktiv != LA_CPU2)
-  {
-    lastAktiv = LA_CPU2;
-    for(int i = 0; i < strCpu2Len; i++)
-    {
-      buf[bufWInd] = strCpu2[i];
-      bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-    }
-    intend = false;
-  }
-
-  for(int i = 0; i < pos; i++)
-  {
-    if(intend && (locBuf[i] != '\r'))
-    {
-      intend = false;
-
-      for(int j = 0; j < strCpuIndent; j++)
-      {
-        buf[bufWInd] = ' ';
-        bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-      }
-    }
-
-    buf[bufWInd] = locBuf[i];
-    bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-
-    if(locBuf[i] == '\n')
-    {
-      intend = true;
-    }
-  }
-
-  cSec.leave();
-
-  if(seq != 0)
-  {
-    seq->queueTask(seqId);
-  }
 }
 
-void TTrace::traceCpu2(uint32_t aLen, const char* aBuf)
+
+void TTrace::vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa)
+{
+  char locBuf[128];
+  uint32_t pos = mp_vsnprintf(&locBuf[0], 128, aFormat, aVa);
+
+  printBuf(locBuf, pos);
+}
+
+void TTrace::printBuf(const char* aBuf, uint32_t aLen)
 {
   TCriticalSection cSec(true);
 
-  if(lastAktiv != LA_CPU2)
-  {
-    lastAktiv = LA_CPU2;
-    for(int i = 0; i < strCpu2Len; i++)
-    {
-      buf[bufWInd] = strCpu2[i];
-      bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-    }
-    intend = false;
-  }
+   if(lastAktiv != TA_CPU2)
+   {
+     lastAktiv = TA_CPU2;
+     for(int i = 0; i < strCpu2Len; i++)
+     {
+       buf[bufWInd] = strCpu2[i];
+       bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
+     }
+     intend = false;
+   }
 
-  for(int i = 0; i < aLen; i++)
-  {
-    if(intend && (aBuf[i] != '\r'))
-    {
-      intend = false;
+   for(int i = 0; i < aLen; i++)
+   {
+     if(intend && (aBuf[i] != '\r'))
+     {
+       intend = false;
 
-      for(int j = 0; j < strCpuIndent; j++)
-      {
-        buf[bufWInd] = ' ';
-        bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
-      }
-    }
+       for(int j = 0; j < strCpuIndent; j++)
+       {
+         buf[bufWInd] = ' ';
+         bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
+       }
+     }
 
-    buf[bufWInd] = aBuf[i];
-    bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
+     buf[bufWInd] = aBuf[i];
+     bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
 
-    if(aBuf[i] == '\n')
-    {
-      intend = true;
-    }
-  }
+     if(aBuf[i] == '\n')
+     {
+       intend = true;
+     }
+   }
 
-  cSec.leave();
+   cSec.leave();
 
-  if(seq != 0)
-  {
-    seq->queueTask(seqId);
-  }
+   if(seq != 0)
+   {
+     seq->queueTask(seqId);
+   }
 }
 
 void TTrace::service()
@@ -227,6 +175,29 @@ void TTrace::service()
     if(seq != 0)
     {
       seq->queueTask(seqId);
+    }
+  }
+}
+
+void TTrace::flush()
+{
+  while(bufWInd != bufRInd)
+  {
+    if(lpm != 0)
+    {
+      lpm->enableLpMode(lpmId, TLowPowerManger::LPM_Run);
+    }
+
+    if(uart->TrySendChar(buf[bufRInd]))
+    {
+      if(bufRInd == bufLength-1)
+      {
+        bufRInd = 0;
+      }
+      else
+      {
+        bufRInd++;
+      }
     }
   }
 }
