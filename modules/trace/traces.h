@@ -57,9 +57,7 @@ public:
   uint32_t bufRInd;
 
   static constexpr const char strCpu1[] = {"\x1B[0mCPU1: "};
-  static constexpr uint32_t strCpu1Len = sizeof(strCpu1);
   static constexpr const char strCpu2[] = {"\x1B[35mCPU2: "};
-  static constexpr uint32_t strCpu2Len = sizeof(strCpu2);
   static constexpr uint32_t strCpuIndent = 6;
 
   typedef enum {
@@ -77,7 +75,7 @@ public:
 
   void vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa);
 
-  void printBuf(const char* aBuf, uint32_t aLen);
+  void printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen);
 
   void service();
 

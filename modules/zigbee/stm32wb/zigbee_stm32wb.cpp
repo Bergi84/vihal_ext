@@ -120,7 +120,7 @@ extern "C" {
 
   void TL_TRACES_EvtReceived( TL_EvtPacket_t * hcievt )
   {
-    gTrace.printBuf((const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload, (uint32_t)hcievt->evtserial.evt.plen - 2U);
+    gTrace.printBuf(gTrace.TA_CPU2, (const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload, (uint32_t)hcievt->evtserial.evt.plen - 2U);
     TL_MM_EvtDone( hcievt );
   }
 }
@@ -299,7 +299,7 @@ void TZigbee_stm32wb::initStack()
 
   SHCI_C2_ZIGBEE_Init();
 
-//  zb = ZbInit(0U, NULL, NULL);
+  zb = ZbInit(0U, NULL, NULL);
 
   TRACECPU1("init of wireless stack done\r\n")
 

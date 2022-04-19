@@ -88,19 +88,32 @@ void TTrace::vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa)
   char locBuf[128];
   uint32_t pos = mp_vsnprintf(&locBuf[0], 128, aFormat, aVa);
 
-  printBuf(locBuf, pos);
+  printBuf(aAktiv, locBuf, pos);
 }
 
-void TTrace::printBuf(const char* aBuf, uint32_t aLen)
+void TTrace::printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen)
 {
   TCriticalSection cSec(true);
 
-   if(lastAktiv != TA_CPU2)
+   if(lastAktiv != aAktiv)
    {
-     lastAktiv = TA_CPU2;
-     for(int i = 0; i < strCpu2Len; i++)
+     lastAktiv = aAktiv;
+     const char* cpuString;
+
+     switch(aAktiv)
      {
-       buf[bufWInd] = strCpu2[i];
+     case TA_CPU1:
+       cpuString = strCpu1;
+
+       break;
+     case TA_CPU2:
+       cpuString = strCpu2;
+       break;
+     }
+
+     for(int i = 0; cpuString[i] != '\0'; i++)
+     {
+       buf[bufWInd] = cpuString[i];
        bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
      }
      intend = false;
