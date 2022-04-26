@@ -8,8 +8,19 @@
 #ifndef VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZDEVICE_H_
 #define VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZDEVICE_H_
 
+#include "zCluster.h"
+#include "zEndpoint.h"
 
+class TzdBase
+{
+public:
+  void addEndpoint(TzeBase* aEndpoint);
 
+private:
+  friend class TzdBase;
+
+  TzeBase* endpoints;
+};
 
 
 

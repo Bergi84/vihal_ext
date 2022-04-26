@@ -123,7 +123,7 @@ public:
 private:
   friend class TzeBase;
 
-  TzeBase* parent;
+  TzeBase* endpoint;
   TzcBase* next;
   TzcBase* prev;
 
@@ -162,15 +162,15 @@ public:
   virtual void getAttrList(attrRec_t* &aAttrList, uint8_t &aAttrListLen) { aAttrList = attrList; aAttrListLen = attrListLen; };
   virtual void getCmdCbList(cmdCbRec_t* &aCmdCbList, uint8_t &aCmdListLen) { aCmdCbList = cmdCbList; aCmdListLen = cmdListLen; };
 
-  inline void setOnCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[1].pObj = aPObj; cmdCbList[1].pMFunc = aPMFunc;};
-  inline void setOnCmdCb(void (*aPFunc)(void *arg))
-    { cmdCbList[1].pObj = 0; cmdCbList[1].pFunc = aPFunc;};
-
   inline void setOffCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[0].pObj = aPObj; cmdCbList[0].pMFunc = aPMFunc;};
   inline void setOffCmdCb(void (*aPFunc)(void *arg))
     { cmdCbList[0].pObj = 0; cmdCbList[0].pMFunc = aPFunc;};
+
+  inline void setOnCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
+    { cmdCbList[1].pObj = aPObj; cmdCbList[1].pMFunc = aPMFunc;};
+  inline void setOnCmdCb(void (*aPFunc)(void *arg))
+    { cmdCbList[1].pObj = 0; cmdCbList[1].pFunc = aPFunc;};
 
   inline void setToggleCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[2].pObj = aPObj; cmdCbList[2].pMFunc = aPMFunc;};
@@ -198,8 +198,8 @@ public:
 
   virtual bool isServer() {return false;};
 
-  inline void sendCmdOn(zAdr_t* adr);
   inline void sendCmdOff(zAdr_t* adr);
+  inline void sendCmdOn(zAdr_t* adr);
   inline void sendCmdToggle(zAdr_t* adr);
 };
 
