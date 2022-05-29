@@ -5,20 +5,21 @@
  *      Author: Bergi
  */
 
-#ifndef VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZDEVICE_H_
-#define VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZDEVICE_H_
+#ifndef ZDEVICE_H_
+#define ZDEVICE_H_
 
-#include "zCluster.h"
-#include "zEndpoint.h"
+#include <stdint.h>
+
+class TzeBase;
 
 class TzdBase
 {
 public:
-  void addEndpoint(TzeBase* aEndpoint);
+  TzdBase() { endpoints = 0; };
+
+  bool addEndpoint(TzeBase* aEndpoint);
 
 private:
-  friend class TzdBase;
-
   TzeBase* endpoints;
 };
 
@@ -26,4 +27,4 @@ private:
 
 
 
-#endif /* VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZDEVICE_H_ */
+#endif /* ZDEVICE_H_ */

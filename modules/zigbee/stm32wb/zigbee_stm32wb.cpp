@@ -364,13 +364,21 @@ void TZigbee_stm32wb::processRequestM0(void)
     evtSyncBypassIdle = true;
 }
 
-void TZigbee_stm32wb::formNetwork(void)
+bool TZigbee_stm32wb::formNetwork(void)
 {
+  if(!stackConfigDone)
+  {
+    return false;
+  }
   // todo: handle here network forming and joining see: APP_ZIGBEE_NwkForm()
 }
 
-void TZigbee_stm32wb::appStart(void)
+bool TZigbee_stm32wb::configStack(void)
 {
+  if(!stackInitDone)
+  {
+    return false;
+  }
   // todo: init cluster, endpoints etc. see: APP_ZIGBEE_App_Init()
 }
 

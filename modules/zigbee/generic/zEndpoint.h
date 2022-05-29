@@ -5,19 +5,35 @@
  *      Author: Bergi
  */
 
-#ifndef VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZENDPOINT_H_
-#define VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZENDPOINT_H_
+#ifndef ZENDPOINT_H_
+#define ZENDPOINT_H_
 
-#include "zDevice.h"
-#include "zCluster.h"
+#include <stdint.h>
+
+class TzdBase;
+class TzcBase;
 
 class TzeBase
 {
 public:
-  void addCluster(TzcBase* aCluster);
+  TzeBase() {
+    epId = invalidId;
+    device = 0;
+    next = 0;
+    prev = 0;
+    clusters = 0;
+  };
+
+  bool addCluster(TzcBase* aCluster);
+  bool setEpId(uint8_t aEpId);
+  uint8_t getEpId();
 
 private:
-  friend class TzeBase;
+  friend class TzdBase;
+
+  static constexpr uint8_t invalidId = 0;
+
+  uint8_t epId;
 
   TzdBase* device;
   TzeBase* next;
@@ -25,4 +41,4 @@ private:
   TzcBase* clusters;
 };
 
-#endif /* VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZENDPOINT_H_ */
+#endif /* ZENDPOINT_H_ */

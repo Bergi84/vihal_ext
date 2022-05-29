@@ -16,6 +16,9 @@
 
 #include "shci_tl.h"
 
+#define TZCONOFFSERVER_IMPL TzcOnOffServer_stm32wb
+#define TZCONOFFSERVER_IMPL TzcOnOffClient_stm32wb
+#include "zCluster.h"
 
 class TZigbee_stm32wb : public TCbClass
 {
@@ -82,8 +85,8 @@ public:
   // tasks
   void processNotifyM0(void);
   void processRequestM0(void);
-  void formNetwork(void);
-  void appStart(void);
+  bool formNetwork(void);
+  bool configStack(void);
 
 private:
   void initStack();

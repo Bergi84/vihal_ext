@@ -5,18 +5,28 @@
  *      Author: Bergi
  */
 
-#ifndef VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZCLUSTER_H_
-#define VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZCLUSTER_H_
+#ifndef ZCLUSTER_PRE_H_
+#define ZCLUSTER_PRE_H_
 
 #include <stdint.h>
 #include "generic_defs.h"
-#include "zEndpoint.h"
+
+class TzeBase;
 
 class TzcBase
 {
-private:
-  TzcBase() {};
-  virtual ~TzcBase() {};
+protected:
+  uint16_t clId;
+
+  TzcBase() {
+    endpoint = 0;
+    next = 0;
+    prev = 0;
+    clId = 0;
+  };
+  virtual ~TzcBase();
+
+  virtual bool init();
 
 public:
   typedef struct
@@ -35,90 +45,31 @@ public:
     bool mandatory;
   } cmdRec_t;
 
-  typedef enum
-  {
-    AT_nodata = 0x00,
-    AT_data8 = 0x08,
-    AT_data16 = 0x09,
-    AT_data24 = 0x0a,
-    AT_data32 = 0x0b,
-    AT_data40 = 0x0c,
-    AT_data48 = 0x0d,
-    AT_data56 = 0x0e,
-    AT_data64 = 0x0f,
-    AT_bool = 0x10,
-    AT_map8 = 0x18,
-    AT_map16 = 0x19,
-    AT_map24 = 0x1a,
-    AT_map32 = 0x1b,
-    AT_map40 = 0x1c,
-    AT_map48 = 0x1d,
-    AT_map56 = 0x1e,
-    AT_map64 = 0x1f,
-    AT_uint8 = 0x20,
-    AT_uint16 = 0x21,
-    AT_uint24 = 0x22,
-    AT_uint32 = 0x23,
-    AT_uint40 = 0x24,
-    AT_uint48 = 0x25,
-    AT_uint56 = 0x26,
-    AT_uint64 = 0x27,
-    AT_int8 = 0x28,
-    AT_int16 = 0x29,
-    AT_int24 = 0x2a,
-    AT_int32 = 0x2b,
-    AT_int40 = 0x2c,
-    AT_int48 = 0x2d,
-    AT_int56 = 0x2e,
-    AT_int64 = 0x2f,
-    AT_enum8 = 0x30,
-    AT_enum16 = 0x31,
-    AT_semi = 0x38,
-    AT_single = 0x39,
-    AT_double = 0x3a,
-    AT_octstr = 0x41,
-    AT_string = 0x42,
-    AT_octstr16 = 0x43,
-    AT_string16 = 0x44,
-    AT_array = 0x48,
-    AT_struct = 0x4c,
-    AT_set = 0x50,
-    AT_bag = 0x51,
-    AT_ToD = 0xe0,
-    AT_date = 0xe1,
-    AT_UTC = 0xe2,
-    AT_clusterId = 0xe8,
-    AT_attribId = 0xe9,
-    AT_bacOID = 0xea,
-    AT_EUI64 = 0xf0,
-    AT_key128 = 0xf1,
-    AT_unkowen = 0xff
-  } attrType_t;
-
   typedef struct
   {
-    uint16_t id;
-    attrType_t type;
-    bool mandatory;
-  } attrRec_t;
+    // todo: add variables for different address methods
+    enum {
+      MODE_INVALID = 0,
+      MODE_GROUP,
+      MODE_SHORT,
+      MODE_EXTENDED,
+      MODE_INTERPAN
+    } mode;
 
-  typedef struct
-  {
-    uint16_t zeId;
-    uint16_t zcId;
-  } zcuid_t;
+    union {
+      uint16_t nwkAdr;  // network address
+      uint64_t extAdr;  // extended address
+    };
 
-  zcuid_t zcuid;
+    union {
+      uint16_t epId;    // end point Id if not an inter pan package
+      uint16_t panID;   // used in mode INTERPAN, epId = ZB_ENDPOINT_INTERPAN
+    };
 
-  virtual uint16_t getClusterId();
+  } zAdr_t;
 
-  virtual void getCmdList(cmdRec_t* &aCmdList, uint8_t &aCmdListLen);
-
-  virtual void getCmdCbList(cmdCbRec_t* &aCmdCbList, uint8_t &aCmdListLen);
-
-  virtual void getAttrList(attrRec_t* &aAttrList, uint8_t &aAttrListLen);
-
-  virtual bool isServer();
+  uint16_t getClusterId();
+  bool isServer();
 
 private:
   friend class TzeBase;
@@ -131,79 +82,72 @@ private:
 
 class TzcOnOff : public TzcBase
 {
-private:
-  TzcOnOff() {};
-  virtual  ~TzcOnOff() {};
+protected:
+  TzcOnOff() {clId = clusterId;};
 
 public:
   static constexpr uint16_t clusterId = 0x0006;
-  static constexpr uint8_t cmdListLen = 6;
-  static constexpr uint8_t attrListLen = 4;
-
-  static constexpr cmdRec_t cmdList[cmdListLen] = {
-      {0x00, 0, true},    // off
-      {0x01, 0, true},    // on
-      {0x02, 0, true},    // toggle
-      {0x40, 2, false},   // off with effect
-      {0x41, 0, false},   // on with recall global scene
-      {0x42, 5, false},   // on with timed off
-  };
+  static constexpr uint8_t cmdListLen = 3;
 
   cmdCbRec_t cmdCbList[cmdListLen];
 
-  static constexpr attrRec_t attrList[attrListLen] = {
-      {0x0000, AT_bool, true},    // OnOff
-      {0x4000, AT_bool, false},   // GlobalSceneConmtrol
-      {0x4001, AT_uint16, false}, // OnTime
-      {0x4002, AT_uint16, false}, // OffWaitTime
-  };
-
-  virtual void getCmdList(cmdRec_t* &aCmdList, uint8_t &aCmdListLen) { aCmdList = cmdList; aCmdListLen = cmdListLen; };
-  virtual void getAttrList(attrRec_t* &aAttrList, uint8_t &aAttrListLen) { aAttrList = attrList; aAttrListLen = attrListLen; };
-  virtual void getCmdCbList(cmdCbRec_t* &aCmdCbList, uint8_t &aCmdListLen) { aCmdCbList = cmdCbList; aCmdListLen = cmdListLen; };
+  inline uint16_t getClusterId() {return clusterId;};
 
   inline void setOffCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[0].pObj = aPObj; cmdCbList[0].pMFunc = aPMFunc;};
-  inline void setOffCmdCb(void (*aPFunc)(void *arg))
-    { cmdCbList[0].pObj = 0; cmdCbList[0].pMFunc = aPFunc;};
+  inline void setOffCmdCb(void (*aPFunc)())
+    { cmdCbList[0].pObj = 0; cmdCbList[0].pFunc = aPFunc;};
 
   inline void setOnCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[1].pObj = aPObj; cmdCbList[1].pMFunc = aPMFunc;};
-  inline void setOnCmdCb(void (*aPFunc)(void *arg))
+  inline void setOnCmdCb(void (*aPFunc)())
     { cmdCbList[1].pObj = 0; cmdCbList[1].pFunc = aPFunc;};
 
   inline void setToggleCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[2].pObj = aPObj; cmdCbList[2].pMFunc = aPMFunc;};
-  inline void setToggleCmdCb(void (*aPFunc)(void *arg))
-    { cmdCbList[2].pObj = 0; cmdCbList[2].pMFunc = aPFunc;};
+  inline void setToggleCmdCb(void (*aPFunc)())
+    { cmdCbList[2].pObj = 0; cmdCbList[2].pFunc = aPFunc;};
 };
 
-class TzcOnOffServer : public TzcOnOff
+class TzcOnOffServer_pre : public TzcOnOff
 {
 public:
-  TzcOnOffServer() {};
-  virtual ~TzcOnOffServer() {};
+  TzcOnOffServer_pre() {};
 
-  virtual bool isServer() {return true;};
+  inline bool isServer() {return true;};
 
   inline void getAttrOnOff(bool &aVal);
   inline void setAttrOnOff(bool aVal);
 };
 
-class TzcOnOffClient : public TzcOnOff
+class TzcOnOffClient_pre : public TzcOnOff
 {
 public:
-  TzcOnOffClient() {};
-  virtual ~TzcOnOffClient() {};
+  TzcOnOffClient_pre() {};
 
-  virtual bool isServer() {return false;};
+  inline bool isServer() {return false;};
 
-  inline void sendCmdOff(zAdr_t* adr);
-  inline void sendCmdOn(zAdr_t* adr);
-  inline void sendCmdToggle(zAdr_t* adr);
+  inline void sendCmdOff(zAdr_t* adr = 0);
+  inline void sendCmdOn(zAdr_t* adr = 0);
+  inline void sendCmdToggle(zAdr_t* adr = 0);
 };
 
 
+#endif /* ZCLUSTER_PRE_H_ */
 
+#ifndef ZCLUSTER_H_
+#define ZCLUSTER_H_
 
-#endif /* VIHAL_EXT_MODULES_ZIGBEE_GENERIC_ZCLUSTER_H_ */
+class TzcOnOffServer : public TZCONOFFSERVER_IMPL
+{
+public:
+  TzcOnOffServer() {};
+};
+
+class TzcOnOffClient : public TZCONOFFCLIENT_IMPL
+{
+public:
+  TzcOnOffClient() {};
+};
+
+#endif /* ZCLUSTER_H_ */
