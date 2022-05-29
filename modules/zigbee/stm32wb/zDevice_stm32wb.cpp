@@ -1,6 +1,6 @@
-#include <zDevice_stm32wb.h>
-#include "zCluster_stm32wb.h"
-#include "zEndpoint_stm32wb.h"
+#include "zDevice.h"
+#include "zCluster.h"
+#include "zEndpoint.h"
 
 bool Tzd_stm32::init(struct ZigBeeT *aZb)
 {
@@ -11,10 +11,12 @@ bool Tzd_stm32::init(struct ZigBeeT *aZb)
     return false;
   }
 
-  Tze_stm32wb* aktEp = endpoints;
+  Tze_stm32wb* aktEp = (Tze_stm32wb*) endpoints;
   while(aktEp != 0)
   {
     aktEp->init();
-    aktEp = aktEp->next;
+    aktEp = (Tze_stm32wb*) aktEp->getNext();
   }
+
+  return true;
 }

@@ -1,6 +1,6 @@
-#include <zEndpoint_stm32wb.h>
-#include "zCluster_stm32wb.h"
-#include "zDevice_stm32wb.h"
+#include "zDevice.h"
+#include "zCluster.h"
+#include "zEndpoint.h"
 
 bool Tze_stm32wb::init()
 {

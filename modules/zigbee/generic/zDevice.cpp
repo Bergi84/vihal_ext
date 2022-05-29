@@ -3,10 +3,10 @@
 #include "zDevice.h"
 
 
-bool TzdBase::addEndpoint(TzeBase* aEndpoint)
+bool TzdBase_pre::addEndpoint(TzeBase_pre* aEndpoint)
 {
   uint8_t locId;
-  if(aEndpoint->epId == TzeBase::invalidId)
+  if(aEndpoint->epId == TzeBase_pre::invalidId)
   {
     locId = 1;
   }
@@ -28,14 +28,14 @@ bool TzdBase::addEndpoint(TzeBase* aEndpoint)
   }
   else
   {
-    TzeBase* aktEp = endpoints;
+    TzeBase_pre* aktEp = endpoints;
     while(aktEp != 0)
     {
       if(aktEp->next == 0 || locId < aktEp->next->epId)
       {
         if(aktEp->next->epId == locId)
         {
-          if(aEndpoint->epId == TzeBase::invalidId)
+          if(aEndpoint->epId == TzeBase_pre::invalidId)
           {
             locId++;
           }

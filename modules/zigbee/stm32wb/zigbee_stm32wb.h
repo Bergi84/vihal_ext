@@ -16,10 +16,6 @@
 
 #include "shci_tl.h"
 
-#define TZCONOFFSERVER_IMPL TzcOnOffServer_stm32wb
-#define TZCONOFFSERVER_IMPL TzcOnOffClient_stm32wb
-#include "zCluster.h"
-
 class TZigbee_stm32wb : public TCbClass
 {
 public:

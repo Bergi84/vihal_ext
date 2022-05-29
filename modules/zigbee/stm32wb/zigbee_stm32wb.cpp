@@ -226,7 +226,7 @@ bool TZigbee_stm32wb::init(TSequencer* aSeq, THwPwr* aPwr)
   seq->addTask(seqIdNotFromM0, this, (void (TCbClass::*)(void)) &TZigbee_stm32wb::processNotifyM0);
   seq->addTask(seqIdReqFromM0, this, (void (TCbClass::*)(void)) &TZigbee_stm32wb::processRequestM0);
   seq->addTask(seqIdNetworkForm, this, (void (TCbClass::*)(void)) &TZigbee_stm32wb::formNetwork);
-  seq->addTask(seqIdZigbeeAppStart, this, (void (TCbClass::*)(void)) &TZigbee_stm32wb::appStart);
+  seq->addTask(seqIdZigbeeAppStart, this, (void (TCbClass::*)(void)) &TZigbee_stm32wb::configStack);
 
   SHCI_TL_HciInitConf_t SHci_Tl_Init_Conf;
   SHci_Tl_Init_Conf.p_cmdbuffer = (uint8_t*)&SystemCmdBuffer;

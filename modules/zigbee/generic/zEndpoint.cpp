@@ -2,10 +2,10 @@
 #include "zEndpoint.h"
 #include "zDevice.h"
 
-bool TzeBase::addCluster(TzcBase* aCluster)
+bool TzeBase_pre::addCluster(TzcBase_pre* aCluster)
 {
   uint8_t locId;
-  if(aCluster->clId == TzeBase::invalidId)
+  if(aCluster->clId == TzeBase_pre::invalidId)
   {
     locId = 1;
   }
@@ -27,14 +27,14 @@ bool TzeBase::addCluster(TzcBase* aCluster)
   }
   else
   {
-    TzcBase* aktEp = clusters;
+    TzcBase_pre* aktEp = clusters;
     while(aktEp != 0)
     {
       if(aktEp->next == 0 || locId < aktEp->next->clId)
       {
         if(aktEp->next->clId == locId)
         {
-          if(aCluster->clId == TzeBase::invalidId)
+          if(aCluster->clId == TzeBase_pre::invalidId)
           {
             locId++;
           }

@@ -11,22 +11,19 @@
 #include <stdint.h>
 #include "generic_defs.h"
 
-class TzeBase;
+class TzeBase_pre;
 
-class TzcBase
+class TzcBase_pre
 {
 protected:
   uint16_t clId;
 
-  TzcBase() {
+  TzcBase_pre() {
     endpoint = 0;
     next = 0;
     prev = 0;
     clId = 0;
   };
-  virtual ~TzcBase();
-
-  virtual bool init();
 
 public:
   typedef struct
@@ -72,82 +69,30 @@ public:
   bool isServer();
 
 private:
-  friend class TzeBase;
+  friend class TzeBase_pre;
 
-  TzeBase* endpoint;
-  TzcBase* next;
-  TzcBase* prev;
+  TzeBase_pre* endpoint;
+  TzcBase_pre* next;
+  TzcBase_pre* prev;
 
 };
-
-class TzcOnOff : public TzcBase
-{
-protected:
-  TzcOnOff() {clId = clusterId;};
-
-public:
-  static constexpr uint16_t clusterId = 0x0006;
-  static constexpr uint8_t cmdListLen = 3;
-
-  cmdCbRec_t cmdCbList[cmdListLen];
-
-  inline uint16_t getClusterId() {return clusterId;};
-
-  inline void setOffCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[0].pObj = aPObj; cmdCbList[0].pMFunc = aPMFunc;};
-  inline void setOffCmdCb(void (*aPFunc)())
-    { cmdCbList[0].pObj = 0; cmdCbList[0].pFunc = aPFunc;};
-
-  inline void setOnCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[1].pObj = aPObj; cmdCbList[1].pMFunc = aPMFunc;};
-  inline void setOnCmdCb(void (*aPFunc)())
-    { cmdCbList[1].pObj = 0; cmdCbList[1].pFunc = aPFunc;};
-
-  inline void setToggleCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[2].pObj = aPObj; cmdCbList[2].pMFunc = aPMFunc;};
-  inline void setToggleCmdCb(void (*aPFunc)())
-    { cmdCbList[2].pObj = 0; cmdCbList[2].pFunc = aPFunc;};
-};
-
-class TzcOnOffServer_pre : public TzcOnOff
-{
-public:
-  TzcOnOffServer_pre() {};
-
-  inline bool isServer() {return true;};
-
-  inline void getAttrOnOff(bool &aVal);
-  inline void setAttrOnOff(bool aVal);
-};
-
-class TzcOnOffClient_pre : public TzcOnOff
-{
-public:
-  TzcOnOffClient_pre() {};
-
-  inline bool isServer() {return false;};
-
-  inline void sendCmdOff(zAdr_t* adr = 0);
-  inline void sendCmdOn(zAdr_t* adr = 0);
-  inline void sendCmdToggle(zAdr_t* adr = 0);
-};
-
 
 #endif /* ZCLUSTER_PRE_H_ */
+
+#ifndef ZCLUSTER_PRE_ONLY
 
 #ifndef ZCLUSTER_H_
 #define ZCLUSTER_H_
 
-class TzcOnOffServer : public TZCONOFFSERVER_IMPL
-{
-public:
-  TzcOnOffServer() {};
-};
+#include "z_impl.h"
 
-class TzcOnOffClient : public TZCONOFFCLIENT_IMPL
+class TzcBase : public TZCBASE_IMPL
 {
-public:
-  TzcOnOffClient() {};
+
 };
 
 #endif /* ZCLUSTER_H_ */
+
+#else
+  #undef ZCLUSTER_PRE_ONLY
+#endif

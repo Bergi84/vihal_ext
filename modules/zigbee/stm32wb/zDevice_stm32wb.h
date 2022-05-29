@@ -8,12 +8,12 @@
 #ifndef ZDEVICE_STM32WB_H_
 #define ZDEVICE_STM32WB_H_
 
-#include <stdint.h>
+#define ZDEVICE_PRE_ONLY
 #include "zDevice.h"
+
 #include "zigbee_stm32wb.h"
 
-
-class Tzd_stm32 : public TzdBase
+class Tzd_stm32 : public TzdBase_pre
 {
 private:
   friend class TZigbee_stm32wb;
@@ -24,7 +24,7 @@ private:
 
 };
 
-
+#define TZDBASE_IMPL Tzd_stm32
 
 
 
