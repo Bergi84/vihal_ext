@@ -25,11 +25,11 @@ public:
   };
 
   bool addCluster(TzcBase_pre* aCluster);
-  bool setEpId(uint8_t aEpId);
-  uint8_t getEpId();
+  inline bool setEpId(uint8_t aEpId) {epId = aEpId; return true;};
+  inline uint8_t getEpId() {return epId;};
   inline TzeBase_pre* getNext() {return next;};
 
-private:
+protected:
   friend class TzdBase_pre;
 
   static constexpr uint8_t invalidId = 0;

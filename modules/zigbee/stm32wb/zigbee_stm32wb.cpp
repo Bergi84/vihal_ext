@@ -9,7 +9,6 @@
 
 #include "hw.h"
 
-#include "tl.h"
 #include "tl_zigbee_hci.h"
 #include "zigbee_interface.h"
 

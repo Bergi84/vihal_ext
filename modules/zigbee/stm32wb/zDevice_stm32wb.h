@@ -15,6 +15,9 @@
 
 class Tzd_stm32 : public TzdBase_pre
 {
+public:
+  inline ZigBeeT* getZHandler() {return zb;};
+
 private:
   friend class TZigbee_stm32wb;
 

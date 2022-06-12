@@ -20,24 +20,32 @@ public:
   static constexpr uint16_t clusterId = 0x0006;
   static constexpr uint8_t cmdListLen = 3;
 
+  enum cmdListInd
+  {
+      CLI_OFF = 0,
+      CLI_ON = 1,
+      CLI_TOG = 2,
+  };
+
   cmdCbRec_t cmdCbList[cmdListLen];
 
   inline uint16_t getClusterId() {return clusterId;};
+  virtual cmdCbRec_t* getCbList(uint8_t* len = 0) {if(len) *len = cmdListLen; return cmdCbList;};
 
   inline void setOffCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[0].pObj = aPObj; cmdCbList[0].pMFunc = aPMFunc;};
+    { cmdCbList[CLI_OFF].pObj = aPObj; cmdCbList[CLI_OFF].pMFunc = aPMFunc;};
   inline void setOffCmdCb(void (*aPFunc)())
-    { cmdCbList[0].pObj = 0; cmdCbList[0].pFunc = aPFunc;};
+    { cmdCbList[CLI_OFF].pObj = 0; cmdCbList[CLI_OFF].pFunc = aPFunc;};
 
   inline void setOnCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[1].pObj = aPObj; cmdCbList[1].pMFunc = aPMFunc;};
+    { cmdCbList[CLI_ON].pObj = aPObj; cmdCbList[CLI_ON].pMFunc = aPMFunc;};
   inline void setOnCmdCb(void (*aPFunc)())
-    { cmdCbList[1].pObj = 0; cmdCbList[1].pFunc = aPFunc;};
+    { cmdCbList[CLI_ON].pObj = 0; cmdCbList[CLI_ON].pFunc = aPFunc;};
 
   inline void setToggleCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
-    { cmdCbList[2].pObj = aPObj; cmdCbList[2].pMFunc = aPMFunc;};
+    { cmdCbList[CLI_TOG].pObj = aPObj; cmdCbList[CLI_TOG].pMFunc = aPMFunc;};
   inline void setToggleCmdCb(void (*aPFunc)())
-    { cmdCbList[2].pObj = 0; cmdCbList[2].pFunc = aPFunc;};
+    { cmdCbList[CLI_TOG].pObj = 0; cmdCbList[CLI_TOG].pFunc = aPFunc;};
 };
 
 class TzcOnOffServer_pre : public TzcOnOff
@@ -66,6 +74,10 @@ public:
 #define ZLIBRARY_PRE_DONE
 
 #endif /* ZLIBRARY_PRE_H_ */
+
+
+
+
 
 #ifndef ZLIBRARY_PRE_ONLY
 

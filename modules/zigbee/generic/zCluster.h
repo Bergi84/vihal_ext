@@ -44,7 +44,6 @@ public:
 
   typedef struct
   {
-    // todo: add variables for different address methods
     enum {
       MODE_INVALID = 0,
       MODE_GROUP,
@@ -66,9 +65,11 @@ public:
   } zAdr_t;
 
   uint16_t getClusterId();
+  TzcBase_pre* getNextCluster() {return next;};
+  virtual cmdCbRec_t* getCbList(uint8_t* len = 0);
   bool isServer();
 
-private:
+protected:
   friend class TzeBase_pre;
 
   TzeBase_pre* endpoint;
