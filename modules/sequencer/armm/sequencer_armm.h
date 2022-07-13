@@ -81,9 +81,11 @@ public:
 
 private:
   void startTask(uint8_t stackInd, uint8_t taskInd);
-  void resumeTask(uint8_t stackInd);
-  bool switchTask(void **sp, bool resume);
+  static bool switchTask(void **sp, bool resume);
   void scheduler();
+
+//  __attribute__((naked)) static void storeTask(void **sp);
+//  __attribute__((naked)) static void restoreTask(void **sp);
 };
 
 

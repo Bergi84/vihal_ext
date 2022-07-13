@@ -13,8 +13,6 @@
 
 #include "zDevice.h"
 
-#include "zigbee_stm32wb.h"
-
 class Tze_stm32wb : public TzeBase_pre
 {
 private:

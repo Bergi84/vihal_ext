@@ -166,13 +166,16 @@ bool TSequencer::queueTask(uint8_t aSeqID)
 
 void TSequencer::waitForEvent(bool* aEvt)
 {
+  if(aEvt == 0)
+    return;
+
   stackRec_t* stack = &stacks[aktivStackInd];
   stack->event = aEvt;
+
   if(switchTask(&stack->sp, true))
   {
     scheduler();
   }
-  *aEvt = false;
 }
 
 bool TSequencer::setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
@@ -245,6 +248,7 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   // set task as inactive
   aktivTask[i] &= ~mask;
   stack->sp = 0;
+  stack->id = invalidId;
 
   // return is not allowed because the stack is not valid anymore
   // so we call the scheduler instead
@@ -252,14 +256,73 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   scheduler();
 }
 
-void TSequencer::resumeTask(uint8_t stackInd)
-{
-  aktivStackInd = stackInd;
-  stackRec_t* stack = &stacks[stackInd];
-  stack->event = 0;
 
-  switchTask(&stack->sp, false);
-}
+//// stores all register to stack and return stack pointer
+//__attribute__((naked)) void TSequencer::storeTask(void **sp)
+//{
+//  uint32_t clobber1;
+//  uint32_t clobber2;
+//
+//  __asm volatile
+//  (
+//      // check if FPU was used
+//      "MRS %0, CONTROL                  \n" // store CONTROL to r1
+//      "tst %0, #0x04                    \n" // and of r1 and 0x04, Z=1 if result is zero
+//
+//      // if fpu was used store all necessary fpu register
+//      "ittt ne                          \n"
+//      "vmrsne %1, fpscr                 \n"
+//      "stmdbne sp!, {%1}                \n"
+//      "vstmdbne sp!, {s0-s31}           \n"
+//
+//      "stmdb sp!, {%0}                  \n" // store CONTROL on stack for restore of task
+//
+//      // store core registers
+//      "stmdb sp!, {r4-r11, r14}         \n"
+//
+//      // get stack pointer
+//      "mrs %1, MSP                      \n"
+//      "str %1, [%2]                     \n"
+//
+//      : "+&r" (clobber1), "+&r" (clobber2)
+//      : "r" (sp)
+//      : "memory"
+//  );
+//}
+//
+//
+//__attribute__((naked)) void TSequencer::restoreTask(void **sp)
+//{
+//  uint32_t clobber1;
+//  uint32_t clobber2;
+//
+//  __asm volatile
+//  (
+//      // set stack pointer
+//      "cpsid i                          \n"
+//      "ldr %1, [%2]                     \n"
+//      "msr msp, %1                      \n"
+//      "isb                              \n"
+//      "cpsie i                          \n"
+//
+//      // load core registers
+//      "ldmia sp!, {r4-r11, r14}         \n"
+//      "ldmia sp!, {%0}                  \n"
+//      "MSR CONTROL, %0                  \n" // restore CONTROL to r1
+//      "tst %0, 0x04                     \n" // and 0x04, only updates N and Z flags
+//
+//      // check if FPU was used
+//      // and restore fpu register in necessary
+//      "ittt ne                          \n"
+//      "vldmiane sp!, {s0-s31}           \n"
+//      "ldmiane sp!, {%0}                \n"
+//      "vmsrne fpscr, %0                 \n"
+//
+//      : "+&r" (clobber1), "+&r" (clobber1)
+//      : "r" (sp)
+//      : "memory"
+//  );
+//}
 
 bool TSequencer::switchTask(void **sp, bool pause)
 {
@@ -293,6 +356,7 @@ bool TSequencer::switchTask(void **sp, bool pause)
         : "r" (sp)
         : "memory"
     );
+    return true;
   }
   else
   {
@@ -309,10 +373,11 @@ bool TSequencer::switchTask(void **sp, bool pause)
         "ldmia sp!, {r4-r11, r14}         \n"
         "ldmia sp!, {%0}                  \n"
         "MSR CONTROL, %0                  \n" // restore CONTROL to r1
-        "tst %0, 0x04                     \n" // and 0x04, only updates N and Z flags
 
         // check if FPU was used
-        // and restore fpu register in necessary
+        "tst %0, 0x04                     \n" // and 0x04, only updates N and Z flags
+
+        // and restore fpu register if necessary
         "ittt ne                          \n"
         "vldmiane sp!, {s0-s31}           \n"
         "ldmiane sp!, {%0}                \n"
@@ -322,9 +387,10 @@ bool TSequencer::switchTask(void **sp, bool pause)
         : "r" (sp)
         : "memory"
     );
+
+    return false;
   }
 
-  return pause;
 }
 
 void TSequencer::scheduler()
@@ -345,9 +411,10 @@ void TSequencer::scheduler()
       {
         if(stacks[tmpId].event != 0 && *stacks[tmpId].event)
         {
+          stacks[tmpId].event = 0;
           schedLastStackInd = tmpId;
-          resumeTask(tmpId);
-          continue;
+          aktivStackInd = tmpId;
+          switchTask(&stacks[tmpId].sp, false); // this function never returns
         }
       }
       else
@@ -356,7 +423,6 @@ void TSequencer::scheduler()
       }
     }
     while(tmpId != endInd);
-    schedLastStackInd = tmpId;
 
     // if a free stack is available
     // search queued task for execution
@@ -376,15 +442,12 @@ void TSequencer::scheduler()
         if(usedId[i] & queuedTask[i] & ~aktivTask[i] & mask)
         {
           schedLastTaskId = tmpId;
-          startTask(freeInd, tmpId);
-          continue;
+          startTask(freeInd, tmpId);  // this function never returns
         }
 
       }
       while (endInd != tmpId);
-
     }
-    schedLastTaskId = tmpId;
 
     // all stacks used or nothing todo, goto low power mode
     if(idleCb.pObj != 0)
