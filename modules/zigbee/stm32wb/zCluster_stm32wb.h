@@ -17,8 +17,8 @@
 class Tzc_stm32wb : public TzcBase_pre
 {
 protected:
-  Tzc_stm32wb() {};
-  virtual ~Tzc_stm32wb() {};
+  Tzc_stm32wb() {clusterHandler = 0;};
+  virtual ~Tzc_stm32wb() = 0;
 
   struct ZbZclClusterT* clusterHandler;
 
@@ -71,7 +71,7 @@ protected:
 
 private:
   friend class Tze_stm32wb;
-  virtual bool init();
+  virtual bool init() = 0;
 };
 
 #define TZCBASE_IMPL Tzc_stm32wb

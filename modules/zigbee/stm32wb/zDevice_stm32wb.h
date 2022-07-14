@@ -51,7 +51,6 @@ public:
   bool evtSyncBypassIdle;
   bool evtShciCmdResp;
 
-  TL_EvtPacket_t *p_ZIGBEE_request_M0_to_M4;
   volatile uint32_t CptReceiveRequestFromM0;
   volatile uint32_t CptReceiveNotifyFromM0;
   void (*FreeBufCb)( void );
@@ -79,6 +78,32 @@ public:
   // are not allowed and lead to an unpredicted behavior
   bool config(void);
 
+  // set get functions for zigbee basic cluster
+  // get functions must called before the config function
+  inline void getAttrZCLVersion(uint8_t &aVal) {aVal = attrZCLVersion;};
+  inline void setAttrZCLVersion(uint8_t aVal) {attrZCLVersion = aVal;};
+  inline void getAttrAppVersion(uint8_t &aVal) {aVal = attrAppVersion;};
+  inline void setAttrAppVersion(uint8_t aVal) {attrAppVersion = aVal;};
+  inline void getAttrStackVersion(uint8_t &aVal) {aVal = attrStackVersion;};
+  inline void setAttrStackVersion(uint8_t aVal) {attrStackVersion = aVal;};
+  inline void getAttrHWVersion(uint8_t &aVal) {aVal = attrStackVersion;};
+  inline void setAttrHWVersion(uint8_t aVal) {attrStackVersion = aVal;};
+  inline void getAttrPowerSource(uint8_t &aVal) {aVal = attrPowerSource;};
+  inline void setAttrPowerSource(uint8_t aVal) {attrPowerSource = aVal;};
+  inline void getAttrPhysicalEnv(uint8_t &aVal) {aVal = attrPhysicalEnv;};
+  inline void setAttrPhysicalEnv(uint8_t aVal) {attrPhysicalEnv = aVal;};
+  inline void getAttrSWBuildId(uint8_t* &aVal) {aVal = attrSWBuildId;};
+  inline void setAttrSWBuildId(uint8_t* aVal) {attrSWBuildId = aVal;};
+  inline void getAttrManufacturaName(uint8_t* &aVal) {aVal = attrManufacturaName;};
+  inline void setAttrManufacturaName(uint8_t* aVal) {attrManufacturaName = aVal;};
+  inline void getAttrModelIdentifier(uint8_t* &aVal) {aVal = attrModelIdentifier;};
+  inline void setAttrModelIdentifier(uint8_t* aVal) {attrModelIdentifier = aVal;};
+  inline void getAttrDateCode(uint8_t* &aVal) {aVal = attrDateCode;};
+  inline void setAttrDateCode(uint8_t* aVal) {attrDateCode = aVal;};
+  inline void getAttrLocationDesc(uint8_t* &aVal) {aVal = attrLocationDesc;};
+  inline void setAttrLocationDesc(uint8_t* aVal) {attrLocationDesc = aVal;};
+
+  // Handler functions for stack interface
   void sysEvtHandler();
   void sysCmdEvtHandler();
   void stackNotifEvtHandler();
@@ -88,7 +113,6 @@ public:
   void cmdEvtHandler();
   void tracesEvtHandler();
   void cmdTransfer();
-
   void sysStatusNot( SHCI_TL_CmdStatus_t status );
   void sysUserEvtRx(void *pPayload);
 

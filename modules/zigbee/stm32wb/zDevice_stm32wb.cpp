@@ -5,6 +5,8 @@
  *      Author: Bergi
  */
 
+#include <string.h>
+
 #include "zDevice_stm32wb.h"
 
 #include "hw.h"
@@ -42,34 +44,46 @@ extern "C" void IRQ_Handler_45() {pZigbeeInt->ipcc.txIrqHandler();}
 extern "C" {
   void HW_IPCC_Init()
   {
+    TRACECPU1("HWIPCC init\r\n");
+
     pZigbeeInt->ipcc.init();
     pZigbeeInt->ipcc.setRxCb(HW_IPCC_TRACES_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::tracesEvtHandler);
   }
 
   void HW_IPCC_Enable( void )
   {
+    TRACECPU1("HWIPCC enable\r\n");
+
     pZigbeeInt->pwr->startCPU2();
   }
 
   void HW_IPCC_SYS_Init()
   {
+    TRACECPU1("HWIPCC sys init\r\n");
+
     pZigbeeInt->ipcc.enableRxChannel(HW_IPCC_SYSTEM_EVENT_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::sysEvtHandler);
   }
 
   void HW_IPCC_SYS_SendCmd()
   {
+    TRACECPU1("HWIPCC sys send cmd\r\n");
+
     pZigbeeInt->ipcc.setTxFlag(HW_IPCC_SYSTEM_CMD_RSP_CHANNEL);
     pZigbeeInt->ipcc.enableTxChannel(HW_IPCC_SYSTEM_CMD_RSP_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::sysCmdEvtHandler);
   }
 
   void HW_IPCC_ZIGBEE_Init()
   {
+    TRACECPU1("HWIPCC zigbee init\r\n");
+
     pZigbeeInt->ipcc.enableRxChannel(HW_IPCC_ZIGBEE_APPLI_NOTIF_ACK_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::stackNotifEvtHandler);
     pZigbeeInt->ipcc.enableRxChannel(HW_IPCC_ZIGBEE_M0_REQUEST_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::stackM0RequestHandler);
   }
 
   void HW_IPCC_ZIGBEE_SendM4RequestToM0( void )
   {
+    TRACECPU1("HWIPCC request to M0\r\n");
+
     pZigbeeInt->ipcc.setTxFlag(HW_IPCC_ZIGBEE_CMD_APPLI_CHANNEL);
     pZigbeeInt->ipcc.enableTxChannel(HW_IPCC_ZIGBEE_CMD_APPLI_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::cmdEvtHandler);
 
@@ -78,6 +92,8 @@ extern "C" {
 
   void HW_IPCC_ZIGBEE_SendM4AckToM0Notify( void )
   {
+    TRACECPU1("HWIPCC notify ack to M0\r\n");
+
     pZigbeeInt->ipcc.clearRxFlag(HW_IPCC_ZIGBEE_APPLI_NOTIF_ACK_CHANNEL);
     // todo: normally only enable is necessary because function already set in HW_IPCC_ZIGBEE_Init
     pZigbeeInt->ipcc.enableRxChannel(HW_IPCC_ZIGBEE_APPLI_NOTIF_ACK_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::stackNotifEvtHandler);
@@ -85,6 +101,8 @@ extern "C" {
 
   void HW_IPCC_ZIGBEE_SendM4AckToM0Request( void )
   {
+    TRACECPU1("HWIPCC request ack to M0\r\n");
+
     pZigbeeInt->ipcc.clearRxFlag(HW_IPCC_ZIGBEE_M0_REQUEST_CHANNEL);
     // todo: normally only enable is necessary because function already set in HW_IPCC_ZIGBEE_Init
     pZigbeeInt->ipcc.enableRxChannel(HW_IPCC_ZIGBEE_M0_REQUEST_CHANNEL, pZigbeeInt, (void (TCbClass::*)()) &Tzd_stm32::stackM0RequestHandler);
@@ -92,6 +110,8 @@ extern "C" {
 
   void HW_IPCC_MM_SendFreeBuf( void (*cb)( void ) )
   {
+    TRACECPU1("HWIPCC send free buf\r\n");
+
     if(pZigbeeInt->ipcc.getTxActivFlag(HW_IPCC_MM_RELEASE_BUFFER_CHANNEL))
     {
       pZigbeeInt->FreeBufCb = cb;
@@ -112,7 +132,8 @@ extern "C" {
 
   void TL_ZIGBEE_M0RequestReceived(TL_EvtPacket_t *Reqbuffer)
   {
-    pZigbeeInt->p_ZIGBEE_request_M0_to_M4 = Reqbuffer;
+    pZigbeeInt->reqFromM0 = Reqbuffer;
+
     pZigbeeInt->CptReceiveRequestFromM0++;
     pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdReqFromM0);
   }
@@ -120,6 +141,14 @@ extern "C" {
   void TL_ZIGBEE_CmdEvtReceived(TL_EvtPacket_t *Otbuffer)
   {
     pZigbeeInt->evtAckFromM0 = true;
+  }
+
+  void TL_ZIGBEE_NotReceived(TL_EvtPacket_t *Notbuffer)
+  {
+    pZigbeeInt->notFromM0 = Notbuffer;
+
+    pZigbeeInt->CptReceiveNotifyFromM0++;
+    pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdNotFromM0);
   }
 
   void TL_TRACES_EvtReceived( TL_EvtPacket_t * hcievt )
@@ -170,9 +199,9 @@ extern "C" {
     // check if there are no pending requests or
     // notifications before send a new command
 
+    pZigbeeInt->evtSyncBypassIdle = false;
     pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdNotFromM0);
     pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdReqFromM0);
-    pZigbeeInt->evtSyncBypassIdle = false;
     pZigbeeInt->seq->waitForEvent(&pZigbeeInt->evtSyncBypassIdle);
   }
 
@@ -278,10 +307,10 @@ void Tzd_stm32::sysUserEvtRx(void *pPayload)
     switch(errorCode)
     {
     case ERR_ZIGBEE_UNKNOWN_CMD:
-      TRACECPU2("** ERR_ZIGBEE : UNKNOWN_CMD \n");
+      TRACECPU2("** ERR_ZIGBEE : UNKNOWN_CMD \r\n");
       break;
     default:
-      TRACECPU2("** ERR_ZIGBEE : ErroCode=%d \n",errorCode);
+      TRACECPU2("** ERR_ZIGBEE : ErroCode=%d \r\n",errorCode);
       break;
     }
   }
@@ -391,6 +420,53 @@ bool Tzd_stm32::config(void)
     return false;
   }
 
+  // setup basic cluster attributes
+  struct ZbZclBasicServerDefaults basicCluster;
+  basicCluster.app_version = attrAppVersion;
+  basicCluster.hw_version = attrHWVersion;
+  basicCluster.stack_version = attrStackVersion;
+  basicCluster.power_source = attrPowerSource;
+
+  if(attrManufacturaName != 0)
+  {
+    uint8_t len = strlen((const char*)attrManufacturaName);
+    if(len > 32)
+      len = 32;
+    basicCluster.mfr_name[0] = len;
+    memcpy(&basicCluster.mfr_name[1], attrManufacturaName, len);
+  }
+
+  if(attrModelIdentifier != 0)
+  {
+    uint8_t len = strlen((const char*)attrModelIdentifier);
+    if(len > 32)
+      len = 32;
+    basicCluster.model_name[0] = len;
+    memcpy(&basicCluster.model_name[1], attrModelIdentifier, len);
+  }
+
+  if(attrSWBuildId != 0)
+  {
+    uint8_t len = strlen((const char*)attrSWBuildId);
+    if(len > 16)
+      len = 16;
+    basicCluster.sw_build_id[0] = len;
+    memcpy(&basicCluster.sw_build_id[1], attrSWBuildId, len);
+  }
+
+  if(attrDateCode != 0)
+  {
+    uint8_t len = strlen((const char*)attrDateCode);
+    if(len > 16)
+      len = 16;
+    basicCluster.date_code[0] = len;
+    memcpy(&basicCluster.date_code[1], attrDateCode, len);
+  }
+
+  ZbZclBasicServerConfigDefaults(zb, &basicCluster);
+
+
+  // call setup routines for endpoints and cluster
   Tze_stm32wb* aktEp = (Tze_stm32wb*) endpoints;
   while(aktEp != 0)
   {
@@ -398,29 +474,39 @@ bool Tzd_stm32::config(void)
     aktEp = (Tze_stm32wb*) aktEp->getNext();
   }
 
+  stackConfigDone = true;
+
   return true;
 }
 
 void Tzd_stm32::sysEvtHandler()
 {
+  TRACECPU1("HWIPCC sys event recieved\r\n");
+
   HW_IPCC_SYS_EvtNot();
   ipcc.clearRxFlag(HW_IPCC_SYSTEM_EVENT_CHANNEL);
 }
 
 void Tzd_stm32::sysCmdEvtHandler()
 {
+  TRACECPU1("HWIPCC sys cmd event recieved\r\n");
+
   ipcc.disableTxChannel(HW_IPCC_SYSTEM_CMD_RSP_CHANNEL);
   HW_IPCC_SYS_CmdEvtNot();
 }
 
 void Tzd_stm32::stackNotifEvtHandler()
 {
+  TRACECPU1("HWIPCC stack notify recieved\r\n");
+
   ipcc.disableRxChannel(HW_IPCC_ZIGBEE_APPLI_NOTIF_ACK_CHANNEL);
   HW_IPCC_ZIGBEE_RecvM0NotifyToM4();
 }
 
 void Tzd_stm32::stackM0RequestHandler()
 {
+  TRACECPU1("HWIPCC stack request recieved\r\n");
+
   ipcc.disableRxChannel(HW_IPCC_ZIGBEE_M0_REQUEST_CHANNEL);
   HW_IPCC_ZIGBEE_RecvM0RequestToM4();
 }
@@ -433,6 +519,8 @@ void Tzd_stm32::traceEvtHandler()
 
 void Tzd_stm32::mmFreeBufHandler()
 {
+  TRACECPU1("HWIPCC free buf recieved\r\n");
+
   ipcc.disableTxChannel(HW_IPCC_MM_RELEASE_BUFFER_CHANNEL);
   FreeBufCb();
   ipcc.setTxFlag(HW_IPCC_MM_RELEASE_BUFFER_CHANNEL);
@@ -440,6 +528,8 @@ void Tzd_stm32::mmFreeBufHandler()
 
 void Tzd_stm32::cmdEvtHandler()
 {
+  TRACECPU1("HWIPCC cmd recieved\r\n");
+
   ipcc.disableTxChannel(HW_IPCC_ZIGBEE_CMD_APPLI_CHANNEL);
   HW_IPCC_ZIGBEE_RecvAppliAckFromM0();
 }

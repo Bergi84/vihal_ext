@@ -24,6 +24,7 @@ protected:
     prev = 0;
     clId = 0;
   };
+  virtual ~TzcBase_pre() = 0;
 
 public:
   typedef struct
@@ -66,7 +67,7 @@ public:
 
   uint16_t getClusterId();
   TzcBase_pre* getNextCluster() {return next;};
-  virtual cmdCbRec_t* getCbList(uint8_t* len = 0);
+  virtual cmdCbRec_t* getCbList(uint8_t* len = 0) = 0;
   bool isServer();
 
 protected:
@@ -89,7 +90,9 @@ protected:
 
 class TzcBase : public TZCBASE_IMPL
 {
-
+protected:
+  TzcBase() {};
+  virtual ~TzcBase() = 0;
 };
 
 #endif /* ZCLUSTER_H_ */

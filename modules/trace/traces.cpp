@@ -14,6 +14,15 @@ constexpr const char TTrace::strCpu2[];
 
 extern "C"
 {
+  void cTraceCpu1(const char* format, ...)
+  {
+    va_list argptr;
+    va_start(argptr, format);
+
+    gTrace.vprintf(TTrace::TA_CPU1, format, argptr);
+    va_end(argptr);
+  }
+
   void cTraceCpu2(const char* format, ...)
   {
     va_list argptr;

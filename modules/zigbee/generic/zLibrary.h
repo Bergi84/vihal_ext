@@ -15,6 +15,7 @@ class TzcOnOff : public TzcBase
 {
 protected:
   TzcOnOff() {clId = clusterId;};
+  virtual ~TzcOnOff() = 0;
 
 public:
   static constexpr uint16_t clusterId = 0x0006;
@@ -30,7 +31,7 @@ public:
   cmdCbRec_t cmdCbList[cmdListLen];
 
   inline uint16_t getClusterId() {return clusterId;};
-  virtual cmdCbRec_t* getCbList(uint8_t* len = 0) {if(len) *len = cmdListLen; return cmdCbList;};
+  virtual cmdCbRec_t* getCbList(uint8_t* len = 0);
 
   inline void setOffCmdCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
     { cmdCbList[CLI_OFF].pObj = aPObj; cmdCbList[CLI_OFF].pMFunc = aPMFunc;};
@@ -52,6 +53,7 @@ class TzcOnOffServer_pre : public TzcOnOff
 {
 public:
   TzcOnOffServer_pre() {};
+  virtual ~TzcOnOffServer_pre() = 0;
 
   inline bool isServer() {return true;};
 
@@ -63,6 +65,7 @@ class TzcOnOffClient_pre : public TzcOnOff
 {
 public:
   TzcOnOffClient_pre() {};
+  virtual ~TzcOnOffClient_pre() = 0;
 
   inline bool isServer() {return false;};
 
@@ -90,12 +93,14 @@ class TzcOnOffServer : public TZCONOFFSERVER_IMPL
 {
 public:
   TzcOnOffServer() {};
+  virtual ~TzcOnOffServer();
 };
 
 class TzcOnOffClient : public TZCONOFFCLIENT_IMPL
 {
 public:
   TzcOnOffClient() {};
+  virtual ~TzcOnOffClient();
 };
 
 #endif /* ZLIBRARY_H_ */

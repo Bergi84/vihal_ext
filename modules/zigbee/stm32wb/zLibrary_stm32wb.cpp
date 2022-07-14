@@ -11,6 +11,11 @@
 
 struct ZbZclOnOffServerCallbacksT onOffServerCallbacks;
 
+TzcOnOffServer_stm32wb::~TzcOnOffServer_stm32wb()
+{
+
+}
+
 bool TzcOnOffServer_stm32wb::init()
 {
   clusterHandler = ZbZclOnOffServerAlloc(getZHandler(), endpoint->getEpId(), (ZbZclOnOffServerCallbacksT*) &onOffServerCallbacks, (void*) this);
@@ -18,6 +23,11 @@ bool TzcOnOffServer_stm32wb::init()
   return true;
 }
 
+
+TzcOnOffClient_stm32wb::~TzcOnOffClient_stm32wb()
+{
+
+}
 
 bool TzcOnOffClient_stm32wb::init()
 {

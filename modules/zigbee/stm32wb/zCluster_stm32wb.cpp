@@ -8,6 +8,10 @@
 #include "zCluster.h"
 #include "zEndpoint.h"
 
+Tzc_stm32wb::~Tzc_stm32wb()
+{
+
+}
 
 enum ZclStatusCodeT Tzc_stm32wb::cbHandler(uint16_t cmd, TzcBase_pre* pCluster)
 {

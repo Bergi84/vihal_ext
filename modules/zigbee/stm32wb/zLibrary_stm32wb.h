@@ -20,6 +20,7 @@ class TzcOnOffServer_stm32wb : public TzcOnOffServer_pre
 {
 public:
   TzcOnOffServer_stm32wb() {};
+  virtual ~TzcOnOffServer_stm32wb() = 0;
 
 private:
   virtual bool init() override;
@@ -43,6 +44,7 @@ class TzcOnOffClient_stm32wb : public TzcOnOffClient_pre
 
 public:
   TzcOnOffClient_stm32wb() {};
+  virtual ~TzcOnOffClient_stm32wb() = 0;
 
   inline void sendCmdOff(zAdr_t* adr = 0) {};
   inline void sendCmdOn(zAdr_t* adr = 0) {};

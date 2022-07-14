@@ -44,7 +44,7 @@ extern THwUart conuart;  // console uart
 class TTrace : public TCbClass
 {
 public:
-  static constexpr uint32_t bufLength = 1024;
+  static constexpr uint32_t bufLength = 4096;
 
   THwUart* uart;
   TLowPowerManger* lpm;
