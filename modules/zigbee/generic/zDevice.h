@@ -15,6 +15,13 @@ class TzeBase_pre;
 class TzdBase_pre
 {
 public:
+  typedef enum
+  {
+    DT_Coordinator,
+    DT_Router,
+    DT_Enddevice
+  } deviceType_e;
+
   TzdBase_pre() {
     endpoints = 0;
 
@@ -29,9 +36,42 @@ public:
     attrModelIdentifier = 0;
     attrDateCode = 0;
     attrLocationDesc = 0;
+    priChMsk = bdb_priChMsk;
+    secChMsk = bdb_secChMsk;
+
+    deviceType = DT_Router;
   };
 
   bool addEndpoint(TzeBase_pre* aEndpoint);
+
+  // set functions for zigbee basic cluster attributes an network configuration
+  // functions must called before configuration of stack
+  inline void setAttrZCLVersion(uint8_t aVal) {attrZCLVersion = aVal;};
+  inline void setAttrAppVersion(uint8_t aVal) {attrAppVersion = aVal;};
+  inline void setAttrStackVersion(uint8_t aVal) {attrStackVersion = aVal;};
+  inline void setAttrHWVersion(uint8_t aVal) {attrStackVersion = aVal;};
+  inline void setAttrPowerSource(uint8_t aVal) {attrPowerSource = aVal;};
+  inline void setAttrPhysicalEnv(uint8_t aVal) {attrPhysicalEnv = aVal;};
+  inline void setAttrSWBuildId(uint8_t* aVal) {attrSWBuildId = aVal;};
+  inline void setAttrManufacturaName(uint8_t* aVal) {attrManufacturaName = aVal;};
+  inline void setAttrModelIdentifier(uint8_t* aVal) {attrModelIdentifier = aVal;};
+  inline void setAttrDateCode(uint8_t* aVal) {attrDateCode = aVal;};
+  inline void setAttrLocationDesc(uint8_t* aVal) {attrLocationDesc = aVal;};
+
+  inline void setDeviceType(deviceType_e aDT) {deviceType = aDT;};
+
+  // set parent age out timeout for end devices
+  // Timeout = (60 * 2^n) seconds for n > 0. If n = 0, timeout = 10 seconds.
+  // 255 (0xff) disables the age out
+  inline void setEndDeviceTimeout(uint8_t aTimeout) {endDeviceTimeout = aTimeout;};
+
+  // channel mask selection, each bit stands for one channel, mask = 1 << ch1 | 1 << ch2 ....
+  // available channel range is from 11 to 26, but many devices do not support channel 26
+  // if no channels are selected primary channel mask is set to ch 11,15,20,25
+  // like recommended in the bdb specification. The secondary channel mask is set to the rest
+  // excepting channel 26 to avoid a network form on this channel
+  inline void setPriChMsk(uint32_t aMsk) {priChMsk = aMsk;};
+  inline void setSecChMsk(uint32_t aMsk) {secChMsk = aMsk;};
 
 protected:
   TzeBase_pre* endpoints;
@@ -50,29 +90,15 @@ protected:
   uint8_t* attrDateCode;
   uint8_t* attrLocationDesc;
 
-  inline void getAttrZCLVersion(uint8_t &aVal);
-  inline void setAttrZCLVersion(uint8_t aVal);
-  inline void getAttrAppVersion(uint8_t &aVal);
-  inline void setAttrAppVersion(uint8_t aVal);
-  inline void getAttrStackVersion(uint8_t &aVal);
-  inline void setAttrStackVersion(uint8_t aVal);
-  inline void getAttrHWVersion(uint8_t &aVal);
-  inline void setAttrHWVersion(uint8_t aVal);
-  inline void getAttrPowerSource(uint8_t &aVal);
-  inline void setAttrPowerSource(uint8_t aVal);
-  inline void getAttrPhysicalEnv(uint8_t &aVal);
-  inline void setAttrPhysicalEnv(uint8_t aVal);
-  inline void getAttrSWBuildId(uint8_t* &aVal);
-  inline void setAttrSWBuildId(uint8_t* aVal);
-  inline void getAttrManufacturaName(uint8_t* &aVal);
-  inline void setAttrManufacturaName(uint8_t* aVal);
-  inline void getAttrModelIdentifier(uint8_t* &aVal);
-  inline void setAttrModelIdentifier(uint8_t* aVal);
-  inline void getAttrDateCode(uint8_t* &aVal);
-  inline void setAttrDateCode(uint8_t* aVal);
-  inline void getAttrLocationDesc(uint8_t* &aVal);
-  inline void setAttrLocationDesc(uint8_t* aVal);
+  deviceType_e deviceType;
 
+  uint8_t endDeviceTimeout;
+
+  static constexpr uint32_t bdb_priChMsk = 0x02108800;
+  static constexpr uint32_t bdb_secChMsk = 0x03fff800 ^ bdb_priChMsk;
+
+  uint32_t priChMsk;
+  uint32_t secChMsk;
 };
 
 #endif /* ZDEVICE_PRE_H_ */

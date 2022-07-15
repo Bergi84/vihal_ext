@@ -16,6 +16,7 @@
 #include "hwsema.h"
 #include "sequencer_armm.h"
 #include "traces.h"
+#include "timeServer.h"
 
 #include "shci_tl.h"
 
@@ -28,6 +29,7 @@ public:
   THwSema sema;
   TSequencer* seq;
   THwPwr* pwr;
+  TTimerServer* ts;
 
   static constexpr uint32_t CFG_TL_EVT_QUEUE_LENGTH = 5;
   static constexpr uint32_t POOL_SIZE  = (CFG_TL_EVT_QUEUE_LENGTH * 4U * DIVC(( sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255), 4U));
@@ -46,10 +48,15 @@ public:
   uint8_t seqIdReqFromM0;
   uint8_t seqIdNotFromM0;
   uint8_t seqIdNetworkForm;
+  uint8_t seqIdStoreData;
+
+  uint8_t tsIdJoin;
+  uint8_t tsTimeOut;
 
   bool evtAckFromM0;
   bool evtSyncBypassIdle;
   bool evtShciCmdResp;
+  bool evtStartupDone;
 
   volatile uint32_t CptReceiveRequestFromM0;
   volatile uint32_t CptReceiveNotifyFromM0;
@@ -64,44 +71,86 @@ public:
   // read for network forming
   bool stackConfigDone;
 
+  // this flag is set if device has connected to a network
+  bool joined;
+  bool wasJoined;
+
+  // this flag signals a join/rejoin timeout occurred
+  bool joinTimeOut;
+
+  // after calling join the timeout start to run, is the device a coordinator
+  // is this the time a new device can join the network, is the device not a coordinator
+  // the join procedure try a to establish a connection to a network every connectRetryTime
+  // times are in ms
+  uint32_t joinTimeout;
+  uint32_t joinRetryInterval;
+
+  inline void confJoining(uint32_t aTimeOut, uint32_t aRetryInterval)
+  {joinTimeout = aTimeOut; joinRetryInterval = aRetryInterval;};
+
+  // after a device was connected to a network and lost the connection
+  // the device try for rejoinTimeout to rejoin to the network in interval
+  // of rejoinRetryTime, if rejoinRetryTime = -1 the device try for infinite time to rejoining
+  // time is in ms
+  uint32_t rejoinTimeout;
+  uint32_t rejoinRetryInterval;
+
+  inline void confRejoining(uint32_t aTimeOut, uint32_t aRetryInterval)
+  {rejoinTimeout = aTimeOut; rejoinRetryInterval = aRetryInterval;};
+
+  typedef struct
+  {
+    TCbClass* pObjWrite;
+    union {
+      void (TCbClass::*pMFuncWrite)(uint32_t aLen, uint8_t* aBuf);
+      void (*pFuncWrite)(uint32_t aLen, uint8_t* aBuf);
+    };
+
+    TCbClass* pObjRead;
+    union {
+      void (TCbClass::*pMFuncRead)(uint32_t &aLen, uint8_t* &aBuf);
+      void (*pFuncRead)(uint32_t &aLen, uint8_t* &aBuf);
+    };
+  } persistentDataCb_t;
+
+  persistentDataCb_t persistentDataCb;
+
+  // after first time a device has connected to network it is possible to store
+  // the connection data for reuse at the next restart if the store and restore
+  // functions are installed,
+  // CAUTION: if data stored in the intern flash the access must coordinated with
+  // CPU2 because a write operation stalls both CPU's
+  // functions for write permission to flash are getFlashSema and releaseFlashSema
+  void setStoreDataCb(TCbClass* pObj, void (TCbClass::*aPMFunc)(uint32_t, uint8_t*) )
+  { persistentDataCb.pObjWrite = pObj; persistentDataCb.pMFuncWrite = aPMFunc;  }
+
+  void setStoreDataCb( void (*aPFunc)(uint32_t, uint8_t*) )
+  { persistentDataCb.pObjWrite = 0; persistentDataCb.pFuncWrite = aPFunc;  }
+
+  void setRestoreDataCb(TCbClass* pObj, void (TCbClass::*aPMFunc)(uint32_t &, uint8_t* &) )
+  { persistentDataCb.pObjRead = pObj; persistentDataCb.pMFuncRead = aPMFunc;  }
+
+  void setRestoreDataCb( void (*aPFunc)(uint32_t &, uint8_t* &) )
+  { persistentDataCb.pObjRead = 0; persistentDataCb.pFuncRead = aPFunc;  }
+
   Tzd_stm32();
 
-  // configures the rf hardware for zigbee operation
+  // before calling this function the rf clock and the rf wakeup clock
+  // must be configured, configures the rf hardware for zigbee operation
   // this function returns immediately
-  // Initialization is done if stackInitDone becomes true
-  bool init(TSequencer* aSeq, THwPwr* aPwr);
+  // Initialization is done if the flag stackInitDone becomes true
+  bool init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs);
 
   // after adding end points and clusters this function must called
   // the function configures the stack with configured end points and clusters
   // configuration is done if stackConfigDone is true
   // after calling this function further modification of endpoints or clusters
   // are not allowed and lead to an unpredicted behavior
-  bool config(void);
+  bool config();
 
-  // set get functions for zigbee basic cluster
-  // get functions must called before the config function
-  inline void getAttrZCLVersion(uint8_t &aVal) {aVal = attrZCLVersion;};
-  inline void setAttrZCLVersion(uint8_t aVal) {attrZCLVersion = aVal;};
-  inline void getAttrAppVersion(uint8_t &aVal) {aVal = attrAppVersion;};
-  inline void setAttrAppVersion(uint8_t aVal) {attrAppVersion = aVal;};
-  inline void getAttrStackVersion(uint8_t &aVal) {aVal = attrStackVersion;};
-  inline void setAttrStackVersion(uint8_t aVal) {attrStackVersion = aVal;};
-  inline void getAttrHWVersion(uint8_t &aVal) {aVal = attrStackVersion;};
-  inline void setAttrHWVersion(uint8_t aVal) {attrStackVersion = aVal;};
-  inline void getAttrPowerSource(uint8_t &aVal) {aVal = attrPowerSource;};
-  inline void setAttrPowerSource(uint8_t aVal) {attrPowerSource = aVal;};
-  inline void getAttrPhysicalEnv(uint8_t &aVal) {aVal = attrPhysicalEnv;};
-  inline void setAttrPhysicalEnv(uint8_t aVal) {attrPhysicalEnv = aVal;};
-  inline void getAttrSWBuildId(uint8_t* &aVal) {aVal = attrSWBuildId;};
-  inline void setAttrSWBuildId(uint8_t* aVal) {attrSWBuildId = aVal;};
-  inline void getAttrManufacturaName(uint8_t* &aVal) {aVal = attrManufacturaName;};
-  inline void setAttrManufacturaName(uint8_t* aVal) {attrManufacturaName = aVal;};
-  inline void getAttrModelIdentifier(uint8_t* &aVal) {aVal = attrModelIdentifier;};
-  inline void setAttrModelIdentifier(uint8_t* aVal) {attrModelIdentifier = aVal;};
-  inline void getAttrDateCode(uint8_t* &aVal) {aVal = attrDateCode;};
-  inline void setAttrDateCode(uint8_t* aVal) {attrDateCode = aVal;};
-  inline void getAttrLocationDesc(uint8_t* &aVal) {aVal = attrLocationDesc;};
-  inline void setAttrLocationDesc(uint8_t* aVal) {attrLocationDesc = aVal;};
+  // startup the zigbee communication, storeCb, restoreCbm device type and channel configuration must
+  // be done before calling this function
+  bool join();
 
   // Handler functions for stack interface
   void sysEvtHandler();
@@ -119,12 +168,17 @@ public:
   // tasks
   void processNotifyM0(void);
   void processRequestM0(void);
-  bool formNetwork(void);
-
+  void formNetwork(void);
+  void storePersistentData(void);
 
 private:
+  bool rfdStackFound;
+  bool ffdStackFound;
+
   void initStack();
   void checkWirelessFwInfo();
+  void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
+  void signalTimeout(THwRtc::time_t time) {joinTimeOut = true;};
 };
 
 #define TZDBASE_IMPL Tzd_stm32

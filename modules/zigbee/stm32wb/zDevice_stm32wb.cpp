@@ -189,6 +189,39 @@ void shci_cmd_resp_wait(uint32_t timeout)
   return;
 }
 
+void cbStoreData(struct ZigBeeT *zb, void *cbarg)
+{
+  pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdStoreData);
+}
+
+void cbStartupDone(enum ZbStatusCodeT status, void *arg)
+{
+  if(status == ZB_STATUS_SUCCESS)
+  {
+    pZigbeeInt->joined = true;
+    pZigbeeInt->wasJoined = true;
+    pZigbeeInt->ts->stop(pZigbeeInt->tsTimeOut);
+  }
+  else
+  {
+    if(pZigbeeInt->joinTimeOut)
+    {
+      // no further join try
+      return;
+    }
+    else
+    {
+      if(pZigbeeInt->wasJoined)
+      {
+        pZigbeeInt->ts->start(pZigbeeInt->tsIdJoin, pZigbeeInt->rejoinRetryInterval);
+      }
+      else
+      {
+        pZigbeeInt->ts->start(pZigbeeInt->tsIdJoin, pZigbeeInt->joinRetryInterval);
+      }
+    }
+  }
+}
 
 /**********************************************/
 /*   interface functions for zigbee core      */
@@ -237,8 +270,24 @@ extern "C" {
 /**********************************************/
 Tzd_stm32::Tzd_stm32()
 {
+  rfdStackFound = false;
+  ffdStackFound = false;
+
   stackInitDone = false;
   stackConfigDone = false;
+  joined = false;
+  wasJoined = false;
+
+  joinTimeout = 60000;
+  joinRetryInterval = 1000;
+
+  rejoinTimeout = -1;
+  rejoinRetryInterval = 60000;
+
+  persistentDataCb.pObjRead = 0;
+  persistentDataCb.pFuncRead = 0;
+  persistentDataCb.pObjWrite = 0;
+  persistentDataCb.pFuncWrite = 0;
 
   // check if this is the only instance of this class
   if(pZigbeeInt != 0)
@@ -247,7 +296,7 @@ Tzd_stm32::Tzd_stm32()
   pZigbeeInt = this;
 }
 
-bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr)
+bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs)
 {
   CptReceiveRequestFromM0 = 0;
   CptReceiveNotifyFromM0 = 0;
@@ -257,15 +306,19 @@ bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr)
 
   seq = aSeq;
   pwr = aPwr;
+  ts = aTs;
   sema.init();
 
   TL_Init();
 
+  ts->create(tsIdJoin, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::retryJoin, false);
+  ts->create(tsTimeOut, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::signalTimeout, false);
 
   seq->addTask(seqIdShciAsync, shci_user_evt_proc);
   seq->addTask(seqIdNotFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::processNotifyM0);
   seq->addTask(seqIdReqFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::processRequestM0);
   seq->addTask(seqIdNetworkForm, this, (void (TCbClass::*)(void)) &Tzd_stm32::formNetwork);
+  seq->addTask(seqIdStoreData, this, (void (TCbClass::*)(void)) &Tzd_stm32::storePersistentData);
 
   SHCI_TL_HciInitConf_t SHci_Tl_Init_Conf;
   SHci_Tl_Init_Conf.p_cmdbuffer = (uint8_t*)&SystemCmdBuffer;
@@ -353,9 +406,11 @@ void Tzd_stm32::checkWirelessFwInfo()
     switch (wirelessInfo.StackType) {
     case INFO_STACK_TYPE_ZIGBEE_FFD:
       TRACECPU1("Wireless FW Type : FFD Zigbee stack\r\n");
+      ffdStackFound = true;
       break;
     case INFO_STACK_TYPE_ZIGBEE_RFD:
       TRACECPU1("Wireless FW Type : RFD Zigbee stack\r\n");
+      rfdStackFound = true;
       break;
     default:
       /* No Zigbee device supported ! */
@@ -399,16 +454,131 @@ void Tzd_stm32::processRequestM0(void)
     evtSyncBypassIdle = true;
 }
 
-bool Tzd_stm32::formNetwork(void)
+void Tzd_stm32::formNetwork(void)
 {
   if(!stackConfigDone)
   {
-    return false;
+    TRACECPU1("** ERR_ZIGBEE : stack not configured \r\n");
+    return;
   }
-  // todo: handle here network forming and joining see: APP_ZIGBEE_NwkForm()
+
+  if(joined)
+  {
+    return;
+  }
+
+  if(wasJoined)
+  {
+    // try a rejoin
+    // todo: how we get the information that we lost the connection?
+
+  }
+  else
+  {
+    // join or form network
+
+    // look for persistent startup data
+    uint32_t len = 0;
+    uint8_t *buf = 0;
+
+    if(persistentDataCb.pObjRead != 0 && persistentDataCb.pMFuncRead != 0)
+    {
+       (persistentDataCb.pObjRead->*persistentDataCb.pMFuncRead)(len, buf);
+    }
+
+    if(persistentDataCb.pObjRead == 0 && persistentDataCb.pFuncRead != 0)
+    {
+       persistentDataCb.pFuncRead(len, buf);
+    }
+
+    if(len > 0)
+    {
+      // Persistent startup data available
+      enum ZbStatusCodeT status = ZbStartupPersist(zb, (const void*) buf, len, 0, cbStartupDone, 0);
+
+      if(status != ZB_STATUS_SUCCESS)
+      {
+        cbStartupDone(status, 0);
+      }
+    }
+    else
+    {
+      // startup without persistent startup data
+
+      struct ZbStartupT config;
+
+      // get default configuration for zigbee 3.0 (zigbee pro)
+      ZbStartupConfigGetProDefaults(&config);
+
+      // configure channel list
+      config.channelList.list[0].page = 0;
+      config.channelList.list[0].channelMask = priChMsk;
+
+      if(priChMsk != 0)
+      {
+        config.channelList.list[1].page = 0;
+        config.channelList.list[1].channelMask = secChMsk;
+        config.channelList.count = 2;
+      }
+      else
+      {
+        config.channelList.count = 1;
+      }
+
+      switch(deviceType)
+      {
+      case DT_Coordinator:
+        if(ffdStackFound)
+        {
+          config.startupControl = ZbStartTypeForm;
+        }
+        else
+        {
+          TRACECPU1("** ERR_ZIGBEE : Wrong Stack installed \r\n");
+          cbStartupDone(ZB_NWK_STATUS_STARTUP_FAILURE, 0);
+          return;
+        }
+        break;
+
+      case DT_Router:
+        if(ffdStackFound)
+        {
+          config.startupControl = ZbStartTypeJoin;
+        }
+        else
+        {
+          TRACECPU1("** ERR_ZIGBEE : Wrong Stack installed \r\n");
+          cbStartupDone(ZB_NWK_STATUS_STARTUP_FAILURE, 0);
+          return;
+        }
+        break;
+
+      case DT_Enddevice:
+        if(rfdStackFound)
+        {
+          config.startupControl = ZbStartTypeJoin;
+          config.capability &= ~(MCP_ASSOC_CAP_RXONIDLE | MCP_ASSOC_CAP_DEV_TYPE | MCP_ASSOC_CAP_ALT_COORD);
+          config.endDeviceTimeout = endDeviceTimeout;
+        }
+        else
+        {
+          TRACECPU1("** ERR_ZIGBEE : Wrong Stack installed \r\n");
+          cbStartupDone(ZB_NWK_STATUS_STARTUP_FAILURE, 0);
+          return;
+        }
+        break;
+      }
+
+      enum ZbStatusCodeT status = ZbStartup(zb, &config, cbStartupDone, 0);
+      if(status != ZB_STATUS_SUCCESS)
+      {
+        cbStartupDone(status, 0);
+      }
+    }
+  }
 }
 
-bool Tzd_stm32::config(void)
+bool Tzd_stm32::config()
 {
   if(!stackInitDone and stackConfigDone)
   {
@@ -418,6 +588,13 @@ bool Tzd_stm32::config(void)
   if(endpoints == 0)
   {
     return false;
+  }
+
+  // register callback to store persistent data
+  if( (persistentDataCb.pObjWrite != 0 && persistentDataCb.pMFuncWrite != 0) ||
+      (persistentDataCb.pObjWrite == 0 && persistentDataCb.pFuncWrite != 0))
+  {
+    ZbPersistNotifyRegister(zb, cbStoreData, 0);
   }
 
   // setup basic cluster attributes
@@ -435,6 +612,10 @@ bool Tzd_stm32::config(void)
     basicCluster.mfr_name[0] = len;
     memcpy(&basicCluster.mfr_name[1], attrManufacturaName, len);
   }
+  else
+  {
+    basicCluster.mfr_name[0] = 0;
+  }
 
   if(attrModelIdentifier != 0)
   {
@@ -443,6 +624,10 @@ bool Tzd_stm32::config(void)
       len = 32;
     basicCluster.model_name[0] = len;
     memcpy(&basicCluster.model_name[1], attrModelIdentifier, len);
+  }
+  else
+  {
+    basicCluster.mfr_name[0] = 0;
   }
 
   if(attrSWBuildId != 0)
@@ -453,6 +638,10 @@ bool Tzd_stm32::config(void)
     basicCluster.sw_build_id[0] = len;
     memcpy(&basicCluster.sw_build_id[1], attrSWBuildId, len);
   }
+  else
+  {
+    basicCluster.mfr_name[0] = 0;
+  }
 
   if(attrDateCode != 0)
   {
@@ -461,6 +650,10 @@ bool Tzd_stm32::config(void)
       len = 16;
     basicCluster.date_code[0] = len;
     memcpy(&basicCluster.date_code[1], attrDateCode, len);
+  }
+  else
+  {
+    basicCluster.mfr_name[0] = 0;
   }
 
   ZbZclBasicServerConfigDefaults(zb, &basicCluster);
@@ -478,6 +671,26 @@ bool Tzd_stm32::config(void)
 
   return true;
 }
+
+bool Tzd_stm32::join()
+{
+  joinTimeOut = false;
+  if(wasJoined)
+  {
+    if(rejoinTimeout != -1)
+    {
+      ts->start(tsTimeOut, rejoinTimeout);
+    }
+  }
+  else
+  {
+    ts->start(tsTimeOut, joinTimeout);
+  }
+
+  seq->queueTask(seqIdNetworkForm);
+
+  return true;
+};
 
 void Tzd_stm32::sysEvtHandler()
 {
@@ -551,4 +764,34 @@ void Tzd_stm32::cmdTransfer()
 
   seq->waitForEvent(&evtAckFromM0);
   evtAckFromM0 = false;
+}
+
+void Tzd_stm32::storePersistentData()
+{
+  // get length
+  uint32_t len;
+
+  len = ZbPersistGet(zb, 0, 0);
+
+  uint8_t* buf = (uint8_t*) malloc(len);
+
+  if(buf == 0)
+  {
+    TRACECPU1("** ERR_ZIGBEE : insufficient memory for persistent data backup \r\n");
+    return;
+  }
+
+  ZbPersistGet(zb, buf, len);
+
+  if(persistentDataCb.pObjWrite != 0 && persistentDataCb.pMFuncWrite != 0)
+  {
+     (persistentDataCb.pObjWrite->*persistentDataCb.pMFuncWrite)(len, buf);
+  }
+
+  if(persistentDataCb.pObjWrite == 0 && persistentDataCb.pFuncWrite != 0)
+  {
+     persistentDataCb.pFuncWrite(len, buf);
+  }
+
+  free(buf);
 }
