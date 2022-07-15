@@ -198,6 +198,7 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
 {
   if(status == ZB_STATUS_SUCCESS)
   {
+    // connection was successful
     pZigbeeInt->joined = true;
     pZigbeeInt->wasJoined = true;
     pZigbeeInt->ts->stop(pZigbeeInt->tsTimeOut);
@@ -206,11 +207,12 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
   {
     if(pZigbeeInt->joinTimeOut)
     {
-      // no further join try
+      // no further join attempt
       return;
     }
     else
     {
+      // queue a further join attempt
       if(pZigbeeInt->wasJoined)
       {
         pZigbeeInt->ts->start(pZigbeeInt->tsIdJoin, pZigbeeInt->rejoinRetryInterval);
