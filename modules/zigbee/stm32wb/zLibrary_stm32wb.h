@@ -25,9 +25,9 @@ public:
 private:
   virtual bool init() override;
 
-  static enum ZclStatusCodeT cbOn(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return cbHandler(CLI_ON, (TzcOnOffServer_stm32wb*)arg);};
-  static enum ZclStatusCodeT cbOff(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return cbHandler(CLI_OFF, (TzcOnOffServer_stm32wb*)arg);};
-  static enum ZclStatusCodeT cbTog(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return cbHandler(CLI_TOG, (TzcOnOffServer_stm32wb*)arg);};
+  static enum ZclStatusCodeT cbOn(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return (ZclStatusCodeT) cmdInCbHandler(CLI_ON, (TzcOnOffServer_stm32wb*)arg, srcInfo);};
+  static enum ZclStatusCodeT cbOff(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return (ZclStatusCodeT) cmdInCbHandler(CLI_OFF, (TzcOnOffServer_stm32wb*)arg, srcInfo);};
+  static enum ZclStatusCodeT cbTog(struct ZbZclClusterT *cluster, struct ZbZclAddrInfoT *srcInfo, void *arg) {return (ZclStatusCodeT) cmdInCbHandler(CLI_TOG, (TzcOnOffServer_stm32wb*)arg, srcInfo);};
 
   static constexpr struct ZbZclOnOffServerCallbacksT onOffServerCallbacks = {
       .off = cbOff,
@@ -46,12 +46,16 @@ public:
   TzcOnOffClient_stm32wb() {};
   virtual ~TzcOnOffClient_stm32wb() = 0;
 
-  inline void sendCmdOff(zAdr_t* adr = 0) {};
-  inline void sendCmdOn(zAdr_t* adr = 0) {};
-  inline void sendCmdToggle(zAdr_t* adr = 0) {};
+  inline void sendCmdOff(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOffReq(clusterHandler, &adrSt, cbOff, (void*) this);};
+  inline void sendCmdOn(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOnReq(clusterHandler, &adrSt, cbOff, (void*) this);};
+  inline void sendCmdToggle(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientToggleReq(clusterHandler, &adrSt, cbOff, (void*) this);};
 
 private:
   virtual bool init() override;
+
+  static void cbOn(struct ZbZclCommandRspT *rsp, void *arg) {return cmdOutCbHandler(CLI_ON, (TzcOnOffServer_stm32wb*)arg, rsp);};
+  static void cbOff(struct ZbZclCommandRspT *rsp, void *arg) {return cmdOutCbHandler(CLI_OFF, (TzcOnOffServer_stm32wb*)arg, rsp);};
+  static void cbTog(struct ZbZclCommandRspT *rsp, void *arg) {return cmdOutCbHandler(CLI_TOG, (TzcOnOffServer_stm32wb*)arg, rsp);};
 };
 
 #define TZCONOFFSERVER_IMPL TzcOnOffServer_stm32wb

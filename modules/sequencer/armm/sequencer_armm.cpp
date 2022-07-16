@@ -157,7 +157,12 @@ bool TSequencer::queueTask(uint8_t aSeqID)
 
   if(usedId[i] & mask)
   {
+    TCriticalSection sec(true);
+
     queuedTask[i] |= mask;
+
+    sec.leave();
+
     return true;
   }
 
@@ -200,6 +205,7 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   uint32_t clobber;
 
   // switch to new stack
+  // add a guard for stack overflow detection ad the bottom of each stack
   __asm volatile
   (
     // clear fpu used flag
@@ -230,8 +236,15 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   uint32_t i = taskInd >> 5;
   uint32_t j = taskInd & 0x1F;
   uint32_t mask = 1U << j;
+
+  // can be modified from interrupt context
+  // and is not a atomic instruction
+  TCriticalSection sec(true);
+
   aktivTask[i] |= mask;
   queuedTask[i] &= ~mask;
+
+  sec.leave();
 
   taskCbRec_t* task = &tasks[taskInd];
 
@@ -411,6 +424,7 @@ void TSequencer::scheduler()
       {
         if(stacks[tmpId].event != 0 && *stacks[tmpId].event)
         {
+          // todo: check stack integrity
           stacks[tmpId].event = 0;
           schedLastStackInd = tmpId;
           aktivStackInd = tmpId;

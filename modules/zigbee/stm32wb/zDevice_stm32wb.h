@@ -65,18 +65,18 @@ public:
   struct ZigBeeT *zb;
 
   // this flag signals that the stack is read for configuration
-  bool stackInitDone;
+  bool flagStackInitDone;
 
   // this flag signals that the stack configuration is done and the zigbee is
   // read for network forming
-  bool stackConfigDone;
+  bool flagStackConfigDone;
 
   // this flag is set if device has connected to a network
-  bool joined;
-  bool wasJoined;
+  bool flagJoined;
+  bool flagWasJoined;
 
   // this flag signals a join/rejoin timeout occurred
-  bool joinTimeOut;
+  bool flagJoinTimeout;
 
   // after calling join the timeout start to run, is the device a coordinator
   // is this the time a new device can join the network, is the device not a coordinator
@@ -138,18 +138,20 @@ public:
   // before calling this function the rf clock and the rf wakeup clock
   // must be configured, configures the rf hardware for zigbee operation
   // this function returns immediately
-  // Initialization is done if the flag stackInitDone becomes true
+  // Initialization is done if the flag flagStackInitDone becomes true
   bool init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs);
 
   // after adding end points and clusters this function must called
   // the function configures the stack with configured end points and clusters
-  // configuration is done if stackConfigDone is true
+  // configuration is done if flagStackConfigDone is true
   // after calling this function further modification of endpoints or clusters
   // are not allowed and lead to an unpredicted behavior
   bool config();
 
   // startup the zigbee communication, storeCb, restoreCbm device type and channel configuration must
-  // be done before calling this function
+  // be done before calling this function, this function returns immediately
+  // if the stack have joined a Network the flagJoined flag becomes true
+  // if the stack can't connect a network the flagJoinTimeout becomes true
   bool join();
 
   // Handler functions for stack interface
@@ -178,7 +180,7 @@ private:
   void initStack();
   void checkWirelessFwInfo();
   void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
-  void signalTimeout(THwRtc::time_t time) {joinTimeOut = true;};
+  void signalTimeout(THwRtc::time_t time) {flagJoinTimeout = true;};
 };
 
 #define TZDBASE_IMPL Tzd_stm32

@@ -16,8 +16,6 @@ class TzeBase_pre;
 class TzcBase_pre
 {
 protected:
-  uint16_t clId;
-
   TzcBase_pre() {
     endpoint = 0;
     next = 0;
@@ -27,22 +25,6 @@ protected:
   virtual ~TzcBase_pre() = 0;
 
 public:
-  typedef struct
-  {
-    TCbClass* pObj;
-    union {
-      void (TCbClass::*pMFunc)();
-      void (*pFunc)();
-    };
-  } cmdCbRec_t;
-
-  typedef struct
-  {
-    uint8_t id;
-    uint8_t payLen;
-    bool mandatory;
-  } cmdRec_t;
-
   typedef struct
   {
     enum {
@@ -62,12 +44,36 @@ public:
       uint16_t epId;    // end point Id if not an inter pan package
       uint16_t panID;   // used in mode INTERPAN, epId = ZB_ENDPOINT_INTERPAN
     };
-
   } zAdr_t;
 
-  uint16_t getClusterId();
+  typedef uint8_t statusCode_t;
+
+  typedef struct
+  {
+    TCbClass* pObj;
+    union {
+      statusCode_t (TCbClass::*pMFunc)(zAdr_t* aAdr);
+      statusCode_t (*pFunc)(zAdr_t* aAdr);
+    };
+  } cmdInCbRec_t;
+
+  typedef struct
+  {
+    TCbClass* pObj;
+    union {
+      void (TCbClass::*pMFunc)(zAdr_t* aAdr, uint8_t status);
+      void (*pFunc)(zAdr_t* aAdr, uint8_t status);
+    };
+  } cmdOutCbRec_t;
+
+  inline uint16_t getClusterId() {return clId;};
   TzcBase_pre* getNextCluster() {return next;};
-  virtual cmdCbRec_t* getCbList(uint8_t* len = 0) = 0;
+
+  inline void getCmdInList(cmdInCbRec_t* &pList, uint8_t &len)
+  { pList = pCmdInCbList; len = cmdInListLen;  };
+  inline void getCmdOutList(cmdOutCbRec_t* &pList, uint8_t &len)
+  { pList = pCmdOutCbList; len = cmdOutListLen;  };
+
   bool isServer();
 
 protected:
@@ -77,6 +83,11 @@ protected:
   TzcBase_pre* next;
   TzcBase_pre* prev;
 
+  uint16_t clId;
+  uint8_t cmdInListLen;
+  uint8_t cmdOutListLen;
+  cmdInCbRec_t* pCmdInCbList;
+  cmdOutCbRec_t* pCmdOutCbList;
 };
 
 #endif /* ZCLUSTER_PRE_H_ */
