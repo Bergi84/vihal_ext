@@ -183,6 +183,11 @@ void TSequencer::waitForEvent(bool* aEvt)
   }
 }
 
+uint32_t TSequencer::getAktivTask()
+{
+  return stacks[aktivStackInd].id;
+}
+
 bool TSequencer::setIdleFunc(TCbClass* aPObj, void (TCbClass::*aPMFunc)())
 {
   idleCb.pObj = aPObj;
@@ -237,11 +242,12 @@ inline void TSequencer::startTask(uint8_t stackInd, uint8_t taskInd)
   uint32_t j = taskInd & 0x1F;
   uint32_t mask = 1U << j;
 
+  aktivTask[i] |= mask;
+
   // can be modified from interrupt context
   // and is not a atomic instruction
   TCriticalSection sec(true);
 
-  aktivTask[i] |= mask;
   queuedTask[i] &= ~mask;
 
   sec.leave();

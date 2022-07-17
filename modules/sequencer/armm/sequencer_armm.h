@@ -66,6 +66,7 @@ public:
   bool init();
   bool addTask(uint8_t &aSeqID, TCbClass* aPObj, void (TCbClass::*aPMFunc)());
   bool addTask(uint8_t &aSeqID, void (*aPFunc)());
+  uint32_t getAktivTask();
   bool delTask(uint8_t aSeqID);
   bool killTask(uint8_t aSeqID);
   bool queueTask(uint8_t aSeqID);

@@ -35,6 +35,7 @@ private:
       .toggle = cbTog
   };
 
+public:
   inline void getAttrOnOff(bool &aVal) {uint8_t attrVal; ZbZclAttrRead(clusterHandler, ZCL_ONOFF_ATTR_ONOFF, NULL, &attrVal, sizeof(attrVal), false); aVal = attrVal;};
   inline void setAttrOnOff(bool aVal) { if(aVal > 1) aVal = 1; ZbZclAttrIntegerWrite(clusterHandler, ZCL_ONOFF_ATTR_ONOFF, aVal); };
 };

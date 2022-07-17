@@ -97,10 +97,18 @@ void TTrace::vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa)
   char locBuf[128];
   uint32_t pos = mp_vsnprintf(&locBuf[0], 128, aFormat, aVa);
 
-  printBuf(aAktiv, locBuf, pos);
+  printBuf(aAktiv, locBuf, pos, false);
 }
 
-void TTrace::printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen)
+void TTrace::vprintf_rn(aktiv_t aAktiv, const char* aFormat, va_list aVa)
+{
+  char locBuf[128];
+  uint32_t pos = mp_vsnprintf(&locBuf[0], 128, aFormat, aVa);
+
+  printBuf(aAktiv, locBuf, pos, true);
+}
+
+void TTrace::printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen, bool addrn)
 {
   TCriticalSection cSec(true);
 
@@ -148,6 +156,15 @@ void TTrace::printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen)
      {
        intend = true;
      }
+   }
+
+   if(addrn)
+   {
+     buf[bufWInd] = '\r';
+     bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
+     buf[bufWInd] = '\n';
+     bufWInd = (bufWInd < bufLength-1) ? (bufWInd + 1) : 0;
+     intend = true;
    }
 
    cSec.leave();

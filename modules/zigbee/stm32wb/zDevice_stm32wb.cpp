@@ -171,7 +171,7 @@ extern "C" {
 
   void TL_TRACES_EvtReceived( TL_EvtPacket_t * hcievt )
   {
-    gTrace.printBuf(gTrace.TA_CPU2, (const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload, (uint32_t)hcievt->evtserial.evt.plen - 2U);
+    gTrace.printBuf(gTrace.TA_CPU2, (const char *) ((TL_AsynchEvt_t *)(hcievt->evtserial.evt.payload))->payload, (uint32_t)hcievt->evtserial.evt.plen - 2U, false);
     TL_MM_EvtDone( hcievt );
   }
 }
@@ -219,7 +219,7 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
     // connection was successful
     pZigbeeInt->flagJoined = true;
     pZigbeeInt->flagWasJoined = true;
-    pZigbeeInt->ts->stop(pZigbeeInt->tsTimeOut);
+    pZigbeeInt->ts->stop(pZigbeeInt->tsIdTimeOut);
   }
   else
   {
@@ -243,6 +243,11 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
   }
 }
 
+void stackLog(struct ZigBeeT *zb, uint32_t mask, const char *hdr, const char *fmt, va_list argptr)
+{
+  gTrace.vprintf_rn(TTrace::TA_CPU1, fmt, argptr);
+}
+
 /**********************************************/
 /*   interface functions for zigbee core      */
 /**********************************************/
@@ -252,10 +257,20 @@ extern "C" {
     // check if there are no pending requests or
     // notifications before send a new command
 
-    pZigbeeInt->evtSyncBypassIdle = false;
-    pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdNotFromM0);
-    pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdReqFromM0);
-    pZigbeeInt->seq->waitForEvent(&pZigbeeInt->evtSyncBypassIdle);
+    // check if the aktive task handles a Notification
+    if(pZigbeeInt->seq->getAktivTask() != pZigbeeInt->seqIdNotFromM0)
+    {
+      pZigbeeInt->evtSyncBypassNotIdle = false;
+      pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdNotFromM0);
+      pZigbeeInt->seq->waitForEvent(&pZigbeeInt->evtSyncBypassNotIdle);
+    }
+
+    if(pZigbeeInt->seq->getAktivTask() != pZigbeeInt->seqIdReqFromM0)
+    {
+      pZigbeeInt->evtSyncBypassReqIdle = false;
+      pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdReqFromM0);
+      pZigbeeInt->seq->waitForEvent(&pZigbeeInt->evtSyncBypassReqIdle);
+    }
   }
 
   void ZIGBEE_CmdTransfer(void)
@@ -322,7 +337,10 @@ bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs)
   CptReceiveNotifyFromM0 = 0;
 
   evtAckFromM0 = false;
+  evtSyncBypassNotIdle = false;
+  evtSyncBypassReqIdle = false;
   evtShciCmdResp = false;
+  evtStartupDone = false;
 
   seq = aSeq;
   pwr = aPwr;
@@ -332,13 +350,27 @@ bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs)
   TL_Init();
 
   ts->create(tsIdJoin, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::retryJoin, false);
-  ts->create(tsTimeOut, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::signalTimeout, false);
+  ts->create(tsIdTimeOut, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::signalTimeout, false);
+
 
   seq->addTask(seqIdShciAsync, shci_user_evt_proc);
-  seq->addTask(seqIdNotFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::processNotifyM0);
-  seq->addTask(seqIdReqFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::processRequestM0);
-  seq->addTask(seqIdNetworkForm, this, (void (TCbClass::*)(void)) &Tzd_stm32::formNetwork);
-  seq->addTask(seqIdStoreData, this, (void (TCbClass::*)(void)) &Tzd_stm32::storePersistentData);
+  seq->addTask(seqIdNotFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskProcessNotifyM0);
+  seq->addTask(seqIdReqFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskProcessRequestM0);
+  seq->addTask(seqIdNetworkForm, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskFormNetwork);
+  seq->addTask(seqIdStoreData, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskStorePersistentData);
+
+/*
+  * According AN5500 we need to call ZbTimerWork and WpanMacWork
+  * on regular basis but st don't use this functions in any of there
+  * examples and WpanMacWork don't exist and until now it works also without
+  *
+
+  ts->create(tsIdStackWork, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::queueStackWork, false);
+  ts->create(tsIdMacWork, this, (void (TCbClass::*)(THwRtc::time_t time)) &Tzd_stm32::queueMacWork, false);
+
+  seq->addTask(seqIdStackWork, this, (void (TCbClass::*)(void)) &Tzd_stm32::serviceStack);
+  seq->addTask(seqIdMacWork, this, (void (TCbClass::*)(void)) &Tzd_stm32::serviceMac);
+*/
 
   SHCI_TL_HciInitConf_t SHci_Tl_Init_Conf;
   SHci_Tl_Init_Conf.p_cmdbuffer = (uint8_t*)&SystemCmdBuffer;
@@ -445,7 +477,7 @@ void Tzd_stm32::checkWirelessFwInfo()
   }
 }
 
-void Tzd_stm32::processNotifyM0(void)
+void Tzd_stm32::taskProcessNotifyM0(void)
 {
   if (CptReceiveNotifyFromM0 != 0) {
     /* If CptReceiveNotifyFromM0 is > 1. it means that we did not serve all the events from the radio */
@@ -459,11 +491,10 @@ void Tzd_stm32::processNotifyM0(void)
     CptReceiveNotifyFromM0 = 0;
   }
 
-  if(CptReceiveRequestFromM0 == 0)
-    evtSyncBypassIdle = true;
+  evtSyncBypassNotIdle = true;
 }
 
-void Tzd_stm32::processRequestM0(void)
+void Tzd_stm32::taskProcessRequestM0(void)
 {
   if (CptReceiveRequestFromM0 != 0) {
     if(CptReceiveRequestFromM0 > 1)
@@ -475,11 +506,10 @@ void Tzd_stm32::processRequestM0(void)
     CptReceiveRequestFromM0 = 0;
   }
 
-  if(CptReceiveNotifyFromM0 == 0)
-    evtSyncBypassIdle = true;
+  evtSyncBypassReqIdle = true;
 }
 
-void Tzd_stm32::formNetwork(void)
+void Tzd_stm32::taskFormNetwork(void)
 {
   if(!flagStackConfigDone)
   {
@@ -692,6 +722,8 @@ bool Tzd_stm32::config()
     aktEp = (Tze_stm32wb*) aktEp->getNext();
   }
 
+  ZbSetLogging(zb, ZB_LOG_MASK_LEVEL_5, stackLog);
+
   flagStackConfigDone = true;
 
   return true;
@@ -704,12 +736,12 @@ bool Tzd_stm32::join()
   {
     if(rejoinTimeout != -1)
     {
-      ts->start(tsTimeOut, rejoinTimeout);
+      ts->start(tsIdTimeOut, rejoinTimeout);
     }
   }
   else
   {
-    ts->start(tsTimeOut, joinTimeout);
+    ts->start(tsIdTimeOut, joinTimeout);
   }
 
   seq->queueTask(seqIdNetworkForm);
@@ -797,7 +829,7 @@ void Tzd_stm32::cmdTransfer()
   evtAckFromM0 = false;
 }
 
-void Tzd_stm32::storePersistentData()
+void Tzd_stm32::taskStorePersistentData()
 {
   // get length
   uint32_t len;
@@ -826,3 +858,22 @@ void Tzd_stm32::storePersistentData()
 
   free(buf);
 }
+
+/*
+ * According AN5500 we need to call ZbTimerWork and WpanMacWork
+ * on regular basis but st don't use this functions in any of there
+ * examples and WpanMacWork don't exist and until now it works also without
+ *
+
+void Tzd_stm32::serviceStack(void)
+{
+  ZbTimerWork(zb);
+  ts->start(tsIdStackWork, ZbCheckTime(zb));
+}
+
+void Tzd_stm32::serviceMac(void)
+{
+  WpanMacWork(zb);
+  ts->start(tsIdMacWork, WpanMacCheck(zb));
+}
+*/

@@ -74,8 +74,9 @@ public:
   void traceCpu2(const char* format, ...);
 
   void vprintf(aktiv_t aAktiv, const char* aFormat, va_list aVa);
+  void vprintf_rn(aktiv_t aAktiv, const char* aFormat, va_list aVa);
 
-  void printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen);
+  void printBuf(aktiv_t aAktiv, const char* aBuf, uint32_t aLen, bool addrn);
 
   void service();
 

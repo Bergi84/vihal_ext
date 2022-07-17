@@ -51,10 +51,11 @@ public:
   uint8_t seqIdStoreData;
 
   uint8_t tsIdJoin;
-  uint8_t tsTimeOut;
+  uint8_t tsIdTimeOut;
 
   bool evtAckFromM0;
-  bool evtSyncBypassIdle;
+  bool evtSyncBypassNotIdle;
+  bool evtSyncBypassReqIdle;
   bool evtShciCmdResp;
   bool evtStartupDone;
 
@@ -167,20 +168,43 @@ public:
   void sysStatusNot( SHCI_TL_CmdStatus_t status );
   void sysUserEvtRx(void *pPayload);
 
-  // tasks
-  void processNotifyM0(void);
-  void processRequestM0(void);
-  void formNetwork(void);
-  void storePersistentData(void);
+
 
 private:
   bool rfdStackFound;
   bool ffdStackFound;
 
+  // tasks
+  void taskProcessNotifyM0(void);
+  void taskProcessRequestM0(void);
+  void taskFormNetwork(void);
+  void taskStorePersistentData(void);
+
   void initStack();
   void checkWirelessFwInfo();
   void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
   void signalTimeout(THwRtc::time_t time) {flagJoinTimeout = true;};
+
+
+
+/*
+ * According AN5500 we need to call ZbTimerWork and WpanMacWork
+ * on regular basis but st don't use this functions in any of there
+ * examples and WpanMacWork don't exist and until now it works also without
+ *
+  uint8_t seqIdStackWork;
+  uint8_t seqIdMacWork;
+
+  uint8_t tsIdStackWork;
+  uint8_t tsIdMacWork;
+
+  void serviceStack(void);
+  void serviceMac(void);
+
+
+  void queueStackWork(THwRtc::time_t time) {seq->queueTask(seqIdStackWork);};
+  void queueMacWork(THwRtc::time_t time) {seq->queueTask(seqIdMacWork);};
+  */
 };
 
 #define TZDBASE_IMPL Tzd_stm32

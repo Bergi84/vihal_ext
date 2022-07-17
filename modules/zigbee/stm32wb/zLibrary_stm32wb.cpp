@@ -9,7 +9,7 @@
 #include "zCluster.h"
 #include "zEndpoint.h"
 
-struct ZbZclOnOffServerCallbacksT onOffServerCallbacks;
+constexpr struct ZbZclOnOffServerCallbacksT TzcOnOffServer_stm32wb::onOffServerCallbacks;
 
 TzcOnOffServer_stm32wb::~TzcOnOffServer_stm32wb()
 {

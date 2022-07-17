@@ -46,6 +46,8 @@ public:
     };
   } zAdr_t;
 
+  // shoud be the defined zcl return codes
+  // todo: add enum
   typedef uint8_t statusCode_t;
 
   typedef struct
