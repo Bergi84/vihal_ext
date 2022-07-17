@@ -207,7 +207,7 @@ void TTimerServer::unqueue(uint8_t aTimerID, bool updateTimer)
         timerRec[nextID].prevTimerID = timerRec[aTimerID].prevTimerID;
       }
     }
-    timerRec[aTimerID].state == TS_Created;
+    timerRec[aTimerID].state = TS_Created;
   }
 
   cSec.leave();

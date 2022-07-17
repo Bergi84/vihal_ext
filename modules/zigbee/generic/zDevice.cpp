@@ -21,7 +21,7 @@ bool TzdBase_pre::addEndpoint(TzeBase_pre* aEndpoint)
     aEndpoint->device = this;
     aEndpoint->prev = 0;
     aEndpoint->next = endpoints;
-    endpoints->prev = aEndpoint;
+
     endpoints = aEndpoint;
 
     return true;

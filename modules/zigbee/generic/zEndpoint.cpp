@@ -20,7 +20,7 @@ bool TzeBase_pre::addCluster(TzcBase_pre* aCluster)
     aCluster->endpoint = this;
     aCluster->prev = 0;
     aCluster->next = clusters;
-    clusters->prev = aCluster;
+
     clusters = aCluster;
 
     return true;

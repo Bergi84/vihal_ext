@@ -14,6 +14,7 @@
 #include "hwpwr.h"
 #include "hwipcc.h"
 #include "hwsema.h"
+#include "hwintflash.h"
 #include "sequencer_armm.h"
 #include "traces.h"
 #include "timeServer.h"
@@ -30,6 +31,7 @@ public:
   TSequencer* seq;
   THwPwr* pwr;
   TTimerServer* ts;
+  THwIntFlash* flash;
 
   static constexpr uint32_t CFG_TL_EVT_QUEUE_LENGTH = 5;
   static constexpr uint32_t POOL_SIZE  = (CFG_TL_EVT_QUEUE_LENGTH * 4U * DIVC(( sizeof(TL_PacketHeader_t) + TL_EVT_HDR_SIZE + 255), 4U));
@@ -58,6 +60,10 @@ public:
   bool evtSyncBypassReqIdle;
   bool evtShciCmdResp;
   bool evtStartupDone;
+
+  // buffer in flash for persistent zigbee data
+  static constexpr uint32_t nvmSize = 4096;
+  static constexpr uint8_t nvm[nvmSize] __attribute__ ((aligned (4096))) = {0};
 
   volatile uint32_t CptReceiveRequestFromM0;
   volatile uint32_t CptReceiveNotifyFromM0;
@@ -99,48 +105,13 @@ public:
   inline void confRejoining(uint32_t aTimeOut, uint32_t aRetryInterval)
   {rejoinTimeout = aTimeOut; rejoinRetryInterval = aRetryInterval;};
 
-  typedef struct
-  {
-    TCbClass* pObjWrite;
-    union {
-      void (TCbClass::*pMFuncWrite)(uint32_t aLen, uint8_t* aBuf);
-      void (*pFuncWrite)(uint32_t aLen, uint8_t* aBuf);
-    };
-
-    TCbClass* pObjRead;
-    union {
-      void (TCbClass::*pMFuncRead)(uint32_t &aLen, uint8_t* &aBuf);
-      void (*pFuncRead)(uint32_t &aLen, uint8_t* &aBuf);
-    };
-  } persistentDataCb_t;
-
-  persistentDataCb_t persistentDataCb;
-
-  // after first time a device has connected to network it is possible to store
-  // the connection data for reuse at the next restart if the store and restore
-  // functions are installed,
-  // CAUTION: if data stored in the intern flash the access must coordinated with
-  // CPU2 because a write operation stalls both CPU's
-  // functions for write permission to flash are getFlashSema and releaseFlashSema
-  void setStoreDataCb(TCbClass* pObj, void (TCbClass::*aPMFunc)(uint32_t, uint8_t*) )
-  { persistentDataCb.pObjWrite = pObj; persistentDataCb.pMFuncWrite = aPMFunc;  }
-
-  void setStoreDataCb( void (*aPFunc)(uint32_t, uint8_t*) )
-  { persistentDataCb.pObjWrite = 0; persistentDataCb.pFuncWrite = aPFunc;  }
-
-  void setRestoreDataCb(TCbClass* pObj, void (TCbClass::*aPMFunc)(uint32_t &, uint8_t* &) )
-  { persistentDataCb.pObjRead = pObj; persistentDataCb.pMFuncRead = aPMFunc;  }
-
-  void setRestoreDataCb( void (*aPFunc)(uint32_t &, uint8_t* &) )
-  { persistentDataCb.pObjRead = 0; persistentDataCb.pFuncRead = aPFunc;  }
-
   Tzd_stm32();
 
   // before calling this function the rf clock and the rf wakeup clock
   // must be configured, configures the rf hardware for zigbee operation
   // this function returns immediately
   // Initialization is done if the flag flagStackInitDone becomes true
-  bool init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs);
+  bool init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs, THwIntFlash* aFlash);
 
   // after adding end points and clusters this function must called
   // the function configures the stack with configured end points and clusters
@@ -168,8 +139,6 @@ public:
   void sysStatusNot( SHCI_TL_CmdStatus_t status );
   void sysUserEvtRx(void *pPayload);
 
-
-
 private:
   bool rfdStackFound;
   bool ffdStackFound;
@@ -184,6 +153,7 @@ private:
   void checkWirelessFwInfo();
   void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
   void signalTimeout(THwRtc::time_t time) {flagJoinTimeout = true;};
+  bool checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataLen);
 
 
 

@@ -20,6 +20,8 @@
 #include "zCluster.h"
 #include "zEndpoint.h"
 
+constexpr uint8_t Tzd_stm32::nvm[4096] __attribute__ ((aligned (4096)));
+
 // this pointer is used for the c interface functionms to the stack
 // it is initialized at class construction
 static Tzd_stm32* pZigbeeInt = 0;
@@ -216,6 +218,8 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
 {
   if(status == ZB_STATUS_SUCCESS)
   {
+    TRACECPU1("joined a network\r\n");
+
     // connection was successful
     pZigbeeInt->flagJoined = true;
     pZigbeeInt->flagWasJoined = true;
@@ -226,6 +230,7 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
     if(pZigbeeInt->flagJoinTimeout)
     {
       // no further join attempt
+      TRACECPU1("joining timeout\r\n");
       return;
     }
     else
@@ -319,11 +324,6 @@ Tzd_stm32::Tzd_stm32()
   rejoinTimeout = -1;
   rejoinRetryInterval = 60000;
 
-  persistentDataCb.pObjRead = 0;
-  persistentDataCb.pFuncRead = 0;
-  persistentDataCb.pObjWrite = 0;
-  persistentDataCb.pFuncWrite = 0;
-
   // check if this is the only instance of this class
   if(pZigbeeInt != 0)
     while(1);
@@ -331,7 +331,7 @@ Tzd_stm32::Tzd_stm32()
   pZigbeeInt = this;
 }
 
-bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs)
+bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs, THwIntFlash* aFlash)
 {
   CptReceiveRequestFromM0 = 0;
   CptReceiveNotifyFromM0 = 0;
@@ -344,6 +344,7 @@ bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs)
 
   seq = aSeq;
   pwr = aPwr;
+  flash = aFlash;
   ts = aTs;
   sema.init();
 
@@ -533,23 +534,18 @@ void Tzd_stm32::taskFormNetwork(void)
     // join or form network
 
     // look for persistent startup data
-    uint32_t len = 0;
-    uint8_t *buf = 0;
+    uint32_t len;
 
-    if(persistentDataCb.pObjRead != 0 && persistentDataCb.pMFuncRead != 0)
+    if(checkPersistentData((uint8_t*)nvm, nvmSize, len))
     {
-       (persistentDataCb.pObjRead->*persistentDataCb.pMFuncRead)(len, buf);
-    }
+      TRACECPU1("startup with persistent data\r\n");
 
-    if(persistentDataCb.pObjRead == 0 && persistentDataCb.pFuncRead != 0)
-    {
-       persistentDataCb.pFuncRead(len, buf);
-    }
+      /* Make sure the EPID is cleared, before we are allowed to restore persistence */
+      uint64_t epid = 0U;
+      ZbNwkSet(zb, ZB_NWK_NIB_ID_ExtendedPanId, &epid, sizeof(uint64_t));
 
-    if(len > 0)
-    {
       // Persistent startup data available
-      enum ZbStatusCodeT status = ZbStartupPersist(zb, (const void*) buf, len, 0, cbStartupDone, 0);
+      enum ZbStatusCodeT status = ZbStartupPersist(zb, (const void*) &nvm[4], len, 0, cbStartupDone, 0);
 
       if(status != ZB_STATUS_SUCCESS)
       {
@@ -558,6 +554,8 @@ void Tzd_stm32::taskFormNetwork(void)
     }
     else
     {
+      TRACECPU1("startup without persistent data\r\n");
+
       // startup without persistent startup data
 
       struct ZbStartupT config;
@@ -646,11 +644,7 @@ bool Tzd_stm32::config()
   }
 
   // register callback to store persistent data
-  if( (persistentDataCb.pObjWrite != 0 && persistentDataCb.pMFuncWrite != 0) ||
-      (persistentDataCb.pObjWrite == 0 && persistentDataCb.pFuncWrite != 0))
-  {
-    ZbPersistNotifyRegister(zb, cbStoreData, 0);
-  }
+  ZbPersistNotifyRegister(zb, cbStoreData, 0);
 
   // setup basic cluster attributes
   struct ZbZclBasicServerDefaults basicCluster;
@@ -831,12 +825,31 @@ void Tzd_stm32::cmdTransfer()
 
 void Tzd_stm32::taskStorePersistentData()
 {
+
+  TRACECPU1("Store persistent data requested\r\n");
+
+  if(!flagJoined)
+  {
+    TRACECPU1("invalidate persistent data\r\n");
+    flash->StartEraseMem((uint32_t)&nvm, nvmSize);
+    flash->WaitForComplete();
+    return;
+  }
+
   // get length
-  uint32_t len;
+  uint32_t len = ZbPersistGet(zb, 0, 0);
+  uint32_t len8BAl = ((len + 7UL) / 8UL) * 8UL; // 8Byte aligned length
+  uint32_t lenFlash = len8BAl + 8;
 
-  len = ZbPersistGet(zb, 0, 0);
+  if(lenFlash > nvmSize)
+  {
+    TRACECPU1("** ERR_ZIGBEE : insufficient nvm for persistent data backup \r\n");
+    return;
+  }
 
-  uint8_t* buf = (uint8_t*) malloc(len);
+  // we allocate additional 4Byte at the beginning for length
+  // and 4 Byte for crc at the end
+  uint8_t* buf = (uint8_t*) malloc(lenFlash + 128);
 
   if(buf == 0)
   {
@@ -844,19 +857,87 @@ void Tzd_stm32::taskStorePersistentData()
     return;
   }
 
-  ZbPersistGet(zb, buf, len);
+  *((uint32_t*) &buf[0]) = len;
 
-  if(persistentDataCb.pObjWrite != 0 && persistentDataCb.pMFuncWrite != 0)
+  // set the end buffer to defined value, because they are maybe not used
+  *((uint32_t*) &buf[len8BAl-4]) = 0;
+  *((uint32_t*) &buf[len8BAl]) = 0;
+
+  uint32_t storeLen = ZbPersistGet(zb, &buf[4], len);
+
+  if(storeLen != len)
   {
-     (persistentDataCb.pObjWrite->*persistentDataCb.pMFuncWrite)(len, buf);
+    TRACECPU1("** ERR_ZIGBEE : inconsistent size \r\n");
+    free(buf);
+    return;
   }
 
-  if(persistentDataCb.pObjWrite == 0 && persistentDataCb.pFuncWrite != 0)
+  // todo: we use here the crc unit without driver
+
+  RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
+  CRC->INIT = 0xFFFFFFFF;
+  CRC->POL = 0x04C11DB7;
+  CRC->CR = CRC_CR_RESET;
+
+  // calculate CRC over length and data
+  for(uint32_t i = 0; i < (len8BAl >> 2) + 1; i++)
   {
-     persistentDataCb.pFuncWrite(len, buf);
+    CRC->DR = ((uint32_t*)buf)[i];
   }
+  *((uint32_t*) &buf[len8BAl+4]) = CRC->DR;
+
+  RCC->AHB1ENR &= ~RCC_AHB1ENR_CRCEN;
+
+  // according AN5289 the flash access must coordinated with CPU2
+  // but there is no coordination in the ST examples and maybe it is only
+  // necessary for BLE and Thread
+
+  flash->StartEraseMem((uint32_t)&nvm, lenFlash);
+  flash->WaitForComplete();
+  flash->StartWriteMem((uint32_t)&nvm, (void*) buf, lenFlash);
+  flash->WaitForComplete();
 
   free(buf);
+}
+
+bool Tzd_stm32::checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataLen)
+{
+  if(buf == 0)
+    return false;
+
+  uint32_t len = *((uint32_t*) &buf[0]);
+  uint32_t len8BAl = ((len + 7UL) / 8UL) * 8UL; // 8Byte aligned length
+
+  if(len8BAl+8 > aLen || len == 0)
+  {
+    return false;
+  }
+
+  RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
+  CRC->INIT = 0xFFFFFFFF;
+  CRC->POL = 0x04C11DB7;
+  CRC->CR = CRC_CR_RESET;
+
+  // calculate CRC over length and data
+  for(uint32_t i = 0; i < (len8BAl >> 2) + 1; i++)
+  {
+    CRC->DR = ((uint32_t*)buf)[i];
+  }
+
+  uint32_t crc = CRC->DR;
+
+  RCC->AHB1ENR &= ~RCC_AHB1ENR_CRCEN;
+
+  if(crc == *((uint32_t*) &buf[len8BAl+4]))
+  {
+    dataLen = len;
+    return true;
+  }
+  else
+  {
+    dataLen = 0;
+    return false;
+  }
 }
 
 /*
