@@ -211,7 +211,7 @@ void shci_cmd_resp_wait(uint32_t timeout)
 
 void cbStoreData(struct ZigBeeT *zb, void *cbarg)
 {
-  pZigbeeInt->seq->queueTask(pZigbeeInt->seqIdStoreData);
+  pZigbeeInt->storePersistentData();
 }
 
 void cbStartupDone(enum ZbStatusCodeT status, void *arg)
@@ -358,7 +358,6 @@ bool Tzd_stm32::init(TSequencer* aSeq, THwPwr* aPwr, TTimerServer* aTs, THwIntFl
   seq->addTask(seqIdNotFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskProcessNotifyM0);
   seq->addTask(seqIdReqFromM0, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskProcessRequestM0);
   seq->addTask(seqIdNetworkForm, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskFormNetwork);
-  seq->addTask(seqIdStoreData, this, (void (TCbClass::*)(void)) &Tzd_stm32::taskStorePersistentData);
 
 /*
   * According AN5500 we need to call ZbTimerWork and WpanMacWork
@@ -823,7 +822,7 @@ void Tzd_stm32::cmdTransfer()
   evtAckFromM0 = false;
 }
 
-void Tzd_stm32::taskStorePersistentData()
+void Tzd_stm32::storePersistentData()
 {
 
   TRACECPU1("Store persistent data requested\r\n");
@@ -849,7 +848,7 @@ void Tzd_stm32::taskStorePersistentData()
 
   // we allocate additional 4Byte at the beginning for length
   // and 4 Byte for crc at the end
-  uint8_t* buf = (uint8_t*) malloc(lenFlash + 128);
+  uint8_t* buf = (uint8_t*) malloc(lenFlash);
 
   if(buf == 0)
   {

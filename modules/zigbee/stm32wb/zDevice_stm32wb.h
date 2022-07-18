@@ -50,7 +50,6 @@ public:
   uint8_t seqIdReqFromM0;
   uint8_t seqIdNotFromM0;
   uint8_t seqIdNetworkForm;
-  uint8_t seqIdStoreData;
 
   uint8_t tsIdJoin;
   uint8_t tsIdTimeOut;
@@ -138,6 +137,7 @@ public:
   void cmdTransfer();
   void sysStatusNot( SHCI_TL_CmdStatus_t status );
   void sysUserEvtRx(void *pPayload);
+  void storePersistentData(void);
 
 private:
   bool rfdStackFound;
@@ -147,14 +147,12 @@ private:
   void taskProcessNotifyM0(void);
   void taskProcessRequestM0(void);
   void taskFormNetwork(void);
-  void taskStorePersistentData(void);
 
   void initStack();
   void checkWirelessFwInfo();
   void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
   void signalTimeout(THwRtc::time_t time) {flagJoinTimeout = true;};
   bool checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataLen);
-
 
 
 /*
