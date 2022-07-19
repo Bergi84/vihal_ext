@@ -84,9 +84,9 @@ public:
 
   inline bool isServer() {return false;};
 
-  inline void sendCmdOff(zAdr_t* adr = 0);
-  inline void sendCmdOn(zAdr_t* adr = 0);
-  inline void sendCmdToggle(zAdr_t* adr = 0);
+  inline bool sendCmdOff(zAdr_t* adr = 0);
+  inline bool sendCmdOn(zAdr_t* adr = 0);
+  inline bool sendCmdToggle(zAdr_t* adr = 0);
 
   inline void setOffCmdOutCb(TCbClass* aPObj, void (TCbClass::*aPMFunc)(zAdr_t*, uint8_t))
     { cmdOutCbList[CLI_OFF].pObj = aPObj; cmdOutCbList[CLI_OFF].pMFunc = aPMFunc;};

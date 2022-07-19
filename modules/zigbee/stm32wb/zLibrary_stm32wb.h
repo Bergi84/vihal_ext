@@ -47,9 +47,9 @@ public:
   TzcOnOffClient_stm32wb() {};
   virtual ~TzcOnOffClient_stm32wb() = 0;
 
-  inline void sendCmdOff(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOffReq(clusterHandler, &adrSt, cbOff, (void*) this);};
-  inline void sendCmdOn(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOnReq(clusterHandler, &adrSt, cbOff, (void*) this);};
-  inline void sendCmdToggle(zAdr_t* adr = 0) { ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientToggleReq(clusterHandler, &adrSt, cbOff, (void*) this);};
+  inline bool sendCmdOff(zAdr_t* adr = 0) { if(!getDevice()->flagJoined) return false; ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOffReq(clusterHandler, &adrSt, cbOff, (void*) this); return true;};
+  inline bool sendCmdOn(zAdr_t* adr = 0) { if(!getDevice()->flagJoined) return false; ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientOnReq(clusterHandler, &adrSt, cbOff, (void*) this); return true;};
+  inline bool sendCmdToggle(zAdr_t* adr = 0) { if(!getDevice()->flagJoined) return false; ZbApsAddrT adrSt; adrConv2st(adr, adrSt); ZbZclOnOffClientToggleReq(clusterHandler, &adrSt, cbOff, (void*) this); return true;};
 
 private:
   virtual bool init() override;

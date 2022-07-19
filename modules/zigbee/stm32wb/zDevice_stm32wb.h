@@ -77,12 +77,19 @@ public:
   // read for network forming
   bool flagStackConfigDone;
 
-  // this flag is set if device has connected to a network
-  bool flagJoined;
+  // this flag is set if device was connected to a network
   bool flagWasJoined;
 
   // this flag signals a join/rejoin timeout occurred
   bool flagJoinTimeout;
+
+  // this flag is used for search after new networks
+  // if set persistent data are ignored
+  bool flagAvoidPersistentStartup;
+
+  // this flag is used for search after new networks
+  // if set the network data is reset
+  bool flagDoReset;
 
   // after calling join the timeout start to run, is the device a coordinator
   // is this the time a new device can join the network, is the device not a coordinator
@@ -119,11 +126,16 @@ public:
   // are not allowed and lead to an unpredicted behavior
   bool config();
 
-  // startup the zigbee communication, storeCb, restoreCbm device type and channel configuration must
+  // startup the zigbee communication. Device type and channel configuration must
   // be done before calling this function, this function returns immediately
   // if the stack have joined a Network the flagJoined flag becomes true
   // if the stack can't connect a network the flagJoinTimeout becomes true
-  bool join();
+  // if valid persistent data found it trys to start with this
+  bool startup();
+
+  // this function clears the network layer and starts a new search for an Network
+  // can called instead of startup or afterwards
+  bool joinNewNwk();
 
   // Handler functions for stack interface
   void sysEvtHandler();

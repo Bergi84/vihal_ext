@@ -28,6 +28,7 @@ public:
   inline bool setEpId(uint8_t aEpId) {epId = aEpId; return true;};
   inline uint8_t getEpId() {return epId;};
   inline TzeBase_pre* getNext() {return next;};
+  inline TzdBase_pre* getDevice() {return device;};
 
 protected:
   friend class TzdBase_pre;

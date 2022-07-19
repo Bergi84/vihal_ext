@@ -60,6 +60,14 @@ void Tzc_stm32wb::cmdOutCbHandler(uint16_t cmd, Tzc_stm32wb* pCluster, struct Zb
   uint8_t len;
   cmdOutCbRec_t* cbList;
   zAdr_t adrInt;
+
+  if(rsp->aps_status != ZB_STATUS_SUCCESS)
+  {
+    ((Tzd_stm32*)pCluster->endpoint->getDevice())->flagJoined = false;
+    ((Tzd_stm32*)pCluster->endpoint->getDevice())->startup();
+    TRACECPU1("connection lost\r\n");
+  }
+
   pCluster->adrConv2int(&rsp->src, adrInt);
 
   pCluster->getCmdOutList(cbList, len);

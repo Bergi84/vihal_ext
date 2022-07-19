@@ -22,6 +22,9 @@ public:
     DT_Enddevice
   } deviceType_e;
 
+  // this flag is set if device has connected to a network
+  bool flagJoined;
+
   TzdBase_pre() {
     endpoints = 0;
 
@@ -40,6 +43,8 @@ public:
     secChMsk = bdb_secChMsk;
 
     deviceType = DT_Router;
+
+    flagJoined = false;
   };
 
   bool addEndpoint(TzeBase_pre* aEndpoint);

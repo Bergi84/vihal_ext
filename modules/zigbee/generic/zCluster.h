@@ -12,6 +12,7 @@
 #include "generic_defs.h"
 
 class TzeBase_pre;
+class TzdBase_pre;
 
 class TzcBase_pre
 {
@@ -77,6 +78,8 @@ public:
   { pList = pCmdOutCbList; len = cmdOutListLen;  };
 
   bool isServer();
+
+  TzdBase_pre* getDevice();
 
 protected:
   friend class TzeBase_pre;

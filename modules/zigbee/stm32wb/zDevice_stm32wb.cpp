@@ -248,6 +248,11 @@ void cbStartupDone(enum ZbStatusCodeT status, void *arg)
   }
 }
 
+void cbRejoin(struct ZbNlmeJoinConfT *conf, void *arg)
+{
+  cbStartupDone(conf->status, 0);
+}
+
 void stackLog(struct ZigBeeT *zb, uint32_t mask, const char *hdr, const char *fmt, va_list argptr)
 {
   gTrace.vprintf_rn(TTrace::TA_CPU1, fmt, argptr);
@@ -315,8 +320,8 @@ Tzd_stm32::Tzd_stm32()
 
   flagStackInitDone = false;
   flagStackConfigDone = false;
-  flagJoined = false;
   flagWasJoined = false;
+  flagAvoidPersistentStartup = false;
 
   joinTimeout = 60000;
   joinRetryInterval = 100;
@@ -525,17 +530,27 @@ void Tzd_stm32::taskFormNetwork(void)
   if(flagWasJoined)
   {
     // try a rejoin
-    // todo: how we get the information that we lost the connection?
+    enum ZbStatusCodeT status = ZbStartupRejoin(zb, cbRejoin, 0);
 
+    if(status != ZB_STATUS_SUCCESS)
+    {
+      while(1);
+    }
   }
   else
   {
     // join or form network
+    if(flagDoReset)
+    {
+      TRACECPU1("reset connection data\r\n");
+      ZbReset(zb);
+      flagDoReset = false;
+    }
 
     // look for persistent startup data
     uint32_t len;
 
-    if(checkPersistentData((uint8_t*)nvm, nvmSize, len))
+    if(checkPersistentData((uint8_t*)nvm, nvmSize, len) && !flagAvoidPersistentStartup)
     {
       TRACECPU1("startup with persistent data\r\n");
 
@@ -722,7 +737,7 @@ bool Tzd_stm32::config()
   return true;
 }
 
-bool Tzd_stm32::join()
+bool Tzd_stm32::startup()
 {
   flagJoinTimeout = false;
   if(flagWasJoined)
@@ -824,21 +839,21 @@ void Tzd_stm32::cmdTransfer()
 
 void Tzd_stm32::storePersistentData()
 {
-
-  TRACECPU1("Store persistent data requested\r\n");
-
-  if(!flagJoined)
-  {
-    TRACECPU1("invalidate persistent data\r\n");
-    flash->StartEraseMem((uint32_t)&nvm, nvmSize);
-    flash->WaitForComplete();
-    return;
-  }
+  // todo: the stack requests every 5 minutes store data
+  // so wear leveling is needed
 
   // get length
   uint32_t len = ZbPersistGet(zb, 0, 0);
   uint32_t len8BAl = ((len + 7UL) / 8UL) * 8UL; // 8Byte aligned length
   uint32_t lenFlash = len8BAl + 8;
+
+  TRACECPU1("Store %iByte persistent data\r\n", len);
+
+  if(!flagJoined)
+  {
+    TRACECPU1("Not joined, skip store of persistent data\r\n", len);
+    return;
+  }
 
   if(lenFlash > nvmSize)
   {
@@ -883,6 +898,7 @@ void Tzd_stm32::storePersistentData()
   {
     CRC->DR = ((uint32_t*)buf)[i];
   }
+
   *((uint32_t*) &buf[len8BAl+4]) = CRC->DR;
 
   RCC->AHB1ENR &= ~RCC_AHB1ENR_CRCEN;
@@ -937,6 +953,20 @@ bool Tzd_stm32::checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataL
     dataLen = 0;
     return false;
   }
+}
+
+bool Tzd_stm32::joinNewNwk()
+{
+  TCriticalSection sec(true);
+
+  flagWasJoined = false;
+  flagJoined = false;
+  flagAvoidPersistentStartup = true;
+  flagDoReset = true;
+
+  sec.leave();
+
+  return startup();
 }
 
 /*
