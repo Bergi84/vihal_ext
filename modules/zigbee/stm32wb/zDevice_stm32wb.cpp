@@ -1009,8 +1009,6 @@ enum zb_msg_filter_rc Tzd_stm32::nlmeMsgCb(struct ZigBeeT *zb, uint32_t id, void
         TRACECPU1("disconnected\r\n");
         pObj->flagWasJoined = false;
         pObj->flagJoined = false;
-
-
       }
     }
     break;

@@ -25,3 +25,12 @@ TzcOnOffServer::~TzcOnOffServer()
 {
 
 }
+
+TzcLevelClient::~TzcLevelClient()
+{
+}
+
+TzcLevelServer::~TzcLevelServer()
+{
+
+}

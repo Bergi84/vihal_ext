@@ -146,6 +146,15 @@ public:
   {
     clId = 0x0006;
     server = false;
+
+    cb.cmd.on.pObj = 0;
+    cb.cmd.on.pMFunc = 0;
+    cb.cmd.off.pObj = 0;
+    cb.cmd.off.pMFunc = 0;
+    cb.cmd.tog.pObj = 0;
+    cb.cmd.tog.pMFunc = 0;
+    cb.attr.onOff.pObj = 0;
+    cb.attr.onOff.pMFunc = 0;
   };
   virtual ~TzcOnOffClient_pre() = 0;
 
@@ -175,6 +184,14 @@ public:
 
   void readAttrOnOff(zAdr_t* aAdr = 0);
 };
+
+
+
+
+
+
+
+
 
 class TzcLevelServer_pre : public TzcBase
 {
@@ -222,10 +239,34 @@ protected:
   } cb;
 
 public:
+  typedef enum {
+    ZCL_ATTR_CurrentLevel = 0x0000
+  } attrId_t;
+
+  typedef enum {
+    ZCL_CMD_MoveTo = 0x0000,
+    ZCL_CMD_Move = 0x0001,
+    ZCL_CMD_Step = 0x0002,
+    ZCL_CMD_Stop = 0x0003,
+    ZCL_CMD_MoveTo_OnOff = 0x0004,
+    ZCL_CMD_Move_OnOff = 0x0005,
+    ZCL_CMD_Step_OnOff = 0x0006,
+    ZCL_CMD_Stop_OnOff = 0x0007,
+  } cmdId_t;
+
   TzcLevelServer_pre()
   {
     clId = 0x0008;
     server = true;
+
+    cb.cmd.move.pObj = 0;
+    cb.cmd.move.pMFunc = 0;
+    cb.cmd.step.pObj = 0;
+    cb.cmd.step.pMFunc = 0;
+    cb.cmd.stop.pObj = 0;
+    cb.cmd.stop.pMFunc = 0;
+    cb.cmd.moveTo.pObj = 0;
+    cb.cmd.moveTo.pMFunc = 0;
   };
   virtual ~TzcLevelServer_pre() = 0;
 
@@ -316,6 +357,17 @@ public:
   {
     clId = 0x0008;
     server = false;
+
+    cb.cmd.move.pObj = 0;
+    cb.cmd.move.pMFunc = 0;
+    cb.cmd.step.pObj = 0;
+    cb.cmd.step.pMFunc = 0;
+    cb.cmd.stop.pObj = 0;
+    cb.cmd.stop.pMFunc = 0;
+    cb.cmd.moveTo.pObj = 0;
+    cb.cmd.moveTo.pMFunc = 0;
+    cb.attr.currentLevel.pObj = 0;
+    cb.attr.currentLevel.pMFunc = 0;
   };
   virtual ~TzcLevelClient_pre() = 0;
 
@@ -345,13 +397,20 @@ public:
   inline void setReadCurrentLevelCb(void (*aPFunc)(uint8_t aLevel, zclStatusCode_t aStatus))
     { cb.attr.currentLevel.pObj = 0; cb.attr.currentLevel.pFunc = aPFunc;};
 
-  inline bool sendCmdMoveToLevel(uint8_t aLevel, uint16_t aTime, zAdr_t* aAdr = 0);
-  inline bool sendCmdMove(bool aDirDown, uint8_t aRate, zAdr_t* aAdr = 0);
-  inline bool sendCmdStep(uint8_t aStepSize, uint16_t aTime, zAdr_t* aAdr = 0);
-  inline bool sendCmdStop(zAdr_t* aAdr = 0);
+  bool sendCmdMoveToLevel(uint8_t aLevel, uint16_t aTime, zAdr_t* aAdr = 0);
+  bool sendCmdMove(bool aDirDown, uint8_t aRate, zAdr_t* aAdr = 0);
+  bool sendCmdStep(bool aDirDown, uint8_t aStepSize, uint16_t aTime, zAdr_t* aAdr = 0);
+  bool sendCmdStop(zAdr_t* aAdr = 0);
 
   inline void readAttrCurrentLevel(zAdr_t* aAdr = 0);
 };
+
+
+
+
+
+
+
 
 
 class TzcAnalogInServer_pre : public TzcBase
@@ -467,6 +526,20 @@ class TzcOnOffClient : public TZCONOFFCLIENT_IMPL
 public:
   TzcOnOffClient() {};
   virtual ~TzcOnOffClient();
+};
+
+class TzcLevelServer : public TZCLEVELSERVER_IMPL
+{
+public:
+  TzcLevelServer() {};
+  virtual ~TzcLevelServer();
+};
+
+class TzcLevelClient : public TZCLEVELCLIENT_IMPL
+{
+public:
+  TzcLevelClient() {};
+  virtual ~TzcLevelClient();
 };
 
 #endif /* ZLIBRARY_H_ */

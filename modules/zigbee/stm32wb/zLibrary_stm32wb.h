@@ -65,6 +65,57 @@ private:
 #define TZCONOFFCLIENT_IMPL TzcOnOffClient_stm32wb
 
 
+
+
+
+
+
+class TzcLevelServer_stm32wb : public TzcLevelServer_pre
+{
+public:
+  TzcLevelServer_stm32wb() {};
+  virtual ~TzcLevelServer_stm32wb() = 0;
+
+private:
+  static enum ZclStatusCodeT cmdHandler(struct ZbZclClusterT *cluster, struct ZbZclHeaderT *zclHdrPtr, struct ZbApsdeDataIndT *dataIndPtr);
+
+  static constexpr struct ZbZclAttrT attrList[] = {
+      //  attrId,                 ZclDataTypeT,                 ZclAttrFlagT,                                       customValSz,  callback,     range {min, max}, reportingInterval{min, max}
+      {   ZCL_ATTR_CurrentLevel,   ZCL_DATATYPE_UNSIGNED_8BIT,  ZCL_ATTR_FLAG_REPORTABLE,                           0,            0,            {0x0, 0xfe},           {0, 3600}}
+  };
+
+  virtual bool init() override;
+
+public:
+  inline void getAttrCurrentLevel(uint8_t &aLevel) {
+    ZbZclAttrRead(clusterHandler, ZCL_ATTR_CurrentLevel, NULL, &aLevel, sizeof(aLevel), false);
+  };
+
+  inline void setAttrCurrentLevel(uint8_t aLevel) {
+    ZbZclAttrWrite(clusterHandler, 0, ZCL_ATTR_CurrentLevel, &aLevel, sizeof(aLevel), ZCL_ATTR_WRITE_FLAG_FORCE);
+  };
+};
+
+class TzcLevelClient_stm32wb : public TzcLevelClient_pre
+{
+public:
+  TzcLevelClient_stm32wb(void) {};
+  virtual ~TzcLevelClient_stm32wb() = 0;
+
+  bool sendCmdMoveToLevel(uint8_t aLevel, uint16_t aTime, zAdr_t* aAdr = 0);
+  bool sendCmdMove(bool aDirDown, uint8_t aRate, zAdr_t* aAdr = 0);
+  bool sendCmdStep(bool aDirDown, uint8_t aStepSize, uint16_t aTime, zAdr_t* aAdr = 0);
+  bool sendCmdStop(zAdr_t* aAdr = 0);
+
+private:
+  virtual bool init() override;
+
+  static void cmdRspCbHandler(struct ZbZclCommandRspT *rsp, void *arg);
+};
+
+#define TZCLEVELSERVER_IMPL TzcLevelServer_stm32wb
+#define TZCLEVELCLIENT_IMPL TzcLevelClient_stm32wb
+
 #endif /* ZLIBRARY_STM32WB_H_ */
 
 #endif /* ZLIBRARY_PRE_DONE */
