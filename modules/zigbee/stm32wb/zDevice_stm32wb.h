@@ -20,6 +20,7 @@
 #include "timeServer.h"
 
 #include "shci_tl.h"
+#include "zigbee_interface.h"
 
 class Tzd_stm32 : public TzdBase_pre, public TCbClass
 {
@@ -84,10 +85,6 @@ public:
   bool flagJoinTimeout;
 
   // this flag is used for search after new networks
-  // if set persistent data are ignored
-  bool flagAvoidPersistentStartup;
-
-  // this flag is used for search after new networks
   // if set the network data is reset
   bool flagDoReset;
 
@@ -150,6 +147,9 @@ public:
   void sysStatusNot( SHCI_TL_CmdStatus_t status );
   void sysUserEvtRx(void *pPayload);
   void storePersistentData(void);
+  void clearPersistentData(void);
+
+  bool setTxPwr(int8_t aPwr);
 
 private:
   bool rfdStackFound;
@@ -165,6 +165,7 @@ private:
   void retryJoin(THwRtc::time_t time) {seq->queueTask(seqIdNetworkForm);};
   void signalTimeout(THwRtc::time_t time) {flagJoinTimeout = true;};
   bool checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataLen);
+  static enum zb_msg_filter_rc nlmeMsgCb(struct ZigBeeT *zb, uint32_t id, void *msg, void *cbarg);
 
 
 /*

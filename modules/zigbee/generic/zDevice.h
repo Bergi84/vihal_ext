@@ -78,6 +78,10 @@ public:
   inline void setPriChMsk(uint32_t aMsk) {priChMsk = aMsk;};
   inline void setSecChMsk(uint32_t aMsk) {secChMsk = aMsk;};
 
+
+  // set transmission power, aPwr is in dBm
+  bool setTxPwr(int8_t aPwr);
+
 protected:
   TzeBase_pre* endpoints;
 

@@ -47,16 +47,51 @@ public:
     };
   } zAdr_t;
 
-  // shoud be the defined zcl return codes
-  // todo: add enum
-  typedef uint8_t statusCode_t;
+  typedef enum
+  {
+    ZCL_STATUS_SUCCESS = 0x00,
+    ZCL_STATUS_FAILURE = 0x01,
+    ZCL_STATUS_NOT_AUTHORIZED = 0x7e,
+    ZCL_STATUS_RESERVED_FIELD_NOT_ZERO = 0x7f,
+    ZCL_STATUS_MALFORMED_COMMAND = 0x80,
+    ZCL_STATUS_UNSUP_CLUSTER_COMMAND = 0x81,
+    ZCL_STATUS_UNSUP_GENERAL_COMMAND = 0x82,
+    ZCL_STATUS_UNSUP_MANUF_CLUSTER_COMMAND = 0x83,
+    ZCL_STATUS_UNSUP_MANUF_GENERAL_COMMAND = 0x84,
+    ZCL_STATUS_INVALID_FIELD = 0x85,
+    ZCL_STATUS_UNSUPPORTED_ATTRIBUTE = 0x86,
+    ZCL_STATUS_INVALID_VALUE = 0x87,
+    ZCL_STATUS_READ_ONLY = 0x88,
+    ZCL_STATUS_INSUFFICIENT_SPACE = 0x89,
+    ZCL_STATUS_DUPLICATE_EXISTS = 0x8a,
+    ZCL_STATUS_NOT_FOUND = 0x8b,
+    ZCL_STATUS_UNREPORTABLE_ATTRIBUTE = 0x8c,
+    ZCL_STATUS_INVALID_DATA_TYPE = 0x8d,
+    ZCL_STATUS_INVALID_SELECTOR = 0x8e,
+    ZCL_STATUS_WRITE_ONLY = 0x8f,
+    ZCL_STATUS_INCONSISTENT_STARTUP_STATE = 0x90,
+    ZCL_STATUS_DEFINED_OUT_OF_BAND = 0x91,
+    ZCL_STATUS_INCONSISTENT = 0x92,
+    ZCL_STATUS_ACTION_DENIED = 0x93,
+    ZCL_STATUS_TIMEOUT = 0x94,
+    ZCL_STATUS_ABORT = 0x95,
+    ZCL_STATUS_INVALID_IMAGE = 0x96,
+    ZCL_STATUS_WAIT_FOR_DATA = 0x97,
+    ZCL_STATUS_NO_IMAGE_AVAILABLE = 0x98,
+    ZCL_STATUS_REQUIRE_MORE_IMAGE = 0x99,
+    ZCL_STATUS_NOTIFICATION_PENDING = 0x9A,
+    ZCL_STATUS_HARDWARE_FAILURE = 0xc0,
+    ZCL_STATUS_SOFTWARE_FAILURE = 0xc1,
+    ZCL_STATUS_CALIBRATION_ERROR = 0xc2,
+    ZCL_STATUS_UNSUPP_CLUSTER = 0xc3,
+  } zclStatusCode_t;
 
   typedef struct
   {
     TCbClass* pObj;
     union {
-      statusCode_t (TCbClass::*pMFunc)(zAdr_t* aAdr);
-      statusCode_t (*pFunc)(zAdr_t* aAdr);
+      zclStatusCode_t (TCbClass::*pMFunc)(zAdr_t* aAdr);
+      zclStatusCode_t (*pFunc)(zAdr_t* aAdr);
     };
   } cmdInCbRec_t;
 
@@ -72,12 +107,7 @@ public:
   inline uint16_t getClusterId() {return clId;};
   TzcBase_pre* getNextCluster() {return next;};
 
-  inline void getCmdInList(cmdInCbRec_t* &pList, uint8_t &len)
-  { pList = pCmdInCbList; len = cmdInListLen;  };
-  inline void getCmdOutList(cmdOutCbRec_t* &pList, uint8_t &len)
-  { pList = pCmdOutCbList; len = cmdOutListLen;  };
-
-  bool isServer();
+  bool isServer() {return server;};
 
   TzdBase_pre* getDevice();
 
@@ -89,10 +119,7 @@ protected:
   TzcBase_pre* prev;
 
   uint16_t clId;
-  uint8_t cmdInListLen;
-  uint8_t cmdOutListLen;
-  cmdInCbRec_t* pCmdInCbList;
-  cmdOutCbRec_t* pCmdOutCbList;
+  bool server;
 };
 
 #endif /* ZCLUSTER_PRE_H_ */

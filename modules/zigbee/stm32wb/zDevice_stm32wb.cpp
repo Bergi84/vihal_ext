@@ -12,7 +12,6 @@
 #include "hw.h"
 
 #include "tl_zigbee_hci.h"
-#include "zigbee_interface.h"
 
 #include "shci.h"
 
@@ -321,7 +320,6 @@ Tzd_stm32::Tzd_stm32()
   flagStackInitDone = false;
   flagStackConfigDone = false;
   flagWasJoined = false;
-  flagAvoidPersistentStartup = false;
 
   joinTimeout = 60000;
   joinRetryInterval = 100;
@@ -550,7 +548,7 @@ void Tzd_stm32::taskFormNetwork(void)
     // look for persistent startup data
     uint32_t len;
 
-    if(checkPersistentData((uint8_t*)nvm, nvmSize, len) && !flagAvoidPersistentStartup)
+    if(checkPersistentData((uint8_t*)nvm, nvmSize, len))
     {
       TRACECPU1("startup with persistent data\r\n");
 
@@ -563,6 +561,7 @@ void Tzd_stm32::taskFormNetwork(void)
 
       if(status != ZB_STATUS_SUCCESS)
       {
+        clearPersistentData();
         cbStartupDone(status, 0);
       }
     }
@@ -732,6 +731,10 @@ bool Tzd_stm32::config()
 
   ZbSetLogging(zb, ZB_LOG_MASK_LEVEL_5, stackLog);
 
+  // set filter to get
+  struct ZbMsgFilterT * filter;
+  ZbMsgFilterRegister(zb, ZB_MSG_FILTER_NLME, ZB_MSG_DEFAULT_PRIO, nlmeMsgCb, this);
+
   flagStackConfigDone = true;
 
   return true;
@@ -841,6 +844,8 @@ void Tzd_stm32::storePersistentData()
 {
   // todo: the stack requests every 5 minutes store data
   // so wear leveling is needed
+  if(!flagJoined)
+    return;
 
   // get length
   uint32_t len = ZbPersistGet(zb, 0, 0);
@@ -848,12 +853,6 @@ void Tzd_stm32::storePersistentData()
   uint32_t lenFlash = len8BAl + 8;
 
   TRACECPU1("Store %iByte persistent data\r\n", len);
-
-  if(!flagJoined)
-  {
-    TRACECPU1("Not joined, skip store of persistent data\r\n", len);
-    return;
-  }
 
   if(lenFlash > nvmSize)
   {
@@ -907,12 +906,18 @@ void Tzd_stm32::storePersistentData()
   // but there is no coordination in the ST examples and maybe it is only
   // necessary for BLE and Thread
 
-  flash->StartEraseMem((uint32_t)&nvm, lenFlash);
+  flash->StartEraseMem((uint32_t)&nvm, nvmSize);
   flash->WaitForComplete();
   flash->StartWriteMem((uint32_t)&nvm, (void*) buf, lenFlash);
   flash->WaitForComplete();
 
   free(buf);
+}
+
+void Tzd_stm32::clearPersistentData()
+{
+  flash->StartEraseMem((uint32_t)&nvm, nvmSize);
+  flash->WaitForComplete();
 }
 
 bool Tzd_stm32::checkPersistentData(uint8_t* buf, uint32_t aLen, uint32_t &dataLen)
@@ -959,14 +964,73 @@ bool Tzd_stm32::joinNewNwk()
 {
   TCriticalSection sec(true);
 
+  clearPersistentData();
   flagWasJoined = false;
   flagJoined = false;
-  flagAvoidPersistentStartup = true;
   flagDoReset = true;
 
   sec.leave();
 
   return startup();
+}
+
+bool Tzd_stm32::setTxPwr(int8_t aPwr) {
+  if(aPwr > 6)
+    aPwr = 6;
+
+  return ZbNwkIfSetTxPower(zb, "wpan0", aPwr);
+}
+
+enum zb_msg_filter_rc Tzd_stm32::nlmeMsgCb(struct ZigBeeT *zb, uint32_t id, void *msg, void *cbarg)
+{
+
+  ZbNlmeNetworkStatusIndT *indication = (ZbNlmeNetworkStatusIndT*) msg;
+  Tzd_stm32* pObj = (Tzd_stm32*) cbarg;
+
+  switch(id)
+  {
+  case ZB_MSG_FILTER_JOIN_IND:
+    {
+      struct ZbNlmeJoinIndT* ind = (struct ZbNlmeJoinIndT*) msg;
+
+      if(ind->rejoinNetwork == ZB_NWK_REJOIN_TYPE_NWKREJOIN)
+      {
+        TRACECPU1("joined\r\n");
+      }
+    }
+    break;
+
+  case ZB_MSG_FILTER_LEAVE_IND:
+    {
+      struct ZbNlmeLeaveIndT* ind = (struct ZbNlmeLeaveIndT*) msg;
+
+      if(ind->relationship == ZB_NWK_NEIGHBOR_REL_NONE)
+      {
+        TRACECPU1("disconnected\r\n");
+        pObj->flagWasJoined = false;
+        pObj->flagJoined = false;
+
+
+      }
+    }
+    break;
+
+  case ZB_MSG_FILTER_STATUS_IND:
+    {
+      struct ZbNlmeNetworkStatusIndT* ind = (struct ZbNlmeNetworkStatusIndT*) msg;
+
+      if( (ind->status == ZB_NWK_STATUS_CODE_NON_TREE_LINK_FAILURE ||
+          ind->status == ZB_NWK_STATUS_CODE_NO_ROUTE_AVAILABLE) && pObj->flagJoined)
+      {
+        TRACECPU1("connection lost\r\n");
+        pObj->flagJoined = false;
+        pObj->startup();
+      }
+    }
+    break;
+  }
+
+  return ZB_MSG_CONTINUE;
 }
 
 /*

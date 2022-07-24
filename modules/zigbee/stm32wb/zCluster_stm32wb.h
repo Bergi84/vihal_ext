@@ -24,9 +24,6 @@ protected:
 
   inline ZigBeeT* getZHandler() {return ((TzeBase*)endpoint)->getZHandler();};
 
-  static statusCode_t cmdInCbHandler(uint16_t cmd, Tzc_stm32wb* pCluster, struct ZbZclAddrInfoT *srcInfo);
-  static void cmdOutCbHandler(uint16_t cmd, Tzc_stm32wb* pCluster, struct ZbZclCommandRspT *rsp);
-
   void adrConv2st(zAdr_t* intAdr, ZbApsAddrT &adr_st);
   void adrConv2int(ZbApsAddrT* stAdr, zAdr_t &adr_int);
 
