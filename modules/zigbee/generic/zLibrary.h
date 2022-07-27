@@ -418,6 +418,12 @@ class TzcAnalogInServer_pre : public TzcBase
 protected:
 
 public:
+  typedef enum {
+    ZCL_ATTR_OutOfService = 0x0051,
+    ZCL_ATTR_PresentValue = 0x0055,
+    ZCL_ATTR_StatusFlags = 0x006f
+  } attrId_t;
+
   TzcAnalogInServer_pre()
   {
     clId = 0x000C;
@@ -429,7 +435,7 @@ public:
   inline void setAttrOutOfService(bool aOOS);
   inline void getAttrPresentValue(float &aVal);
   inline void setAttrPresentValue(float aVal);
-  inline void getAttrStatusFlags(bool aAlarm, bool aFault, bool aOverriden, bool aOutOfService);
+  inline void getAttrStatusFlags(bool &aAlarm, bool &aFault, bool &aOverriden, bool &aOutOfService);
   inline void setAttrStatusFlags(bool aAlarm, bool aFault, bool aOverriden, bool aOutOfService);
 
 };
@@ -540,6 +546,20 @@ class TzcLevelClient : public TZCLEVELCLIENT_IMPL
 public:
   TzcLevelClient() {};
   virtual ~TzcLevelClient();
+};
+
+class TzcAnalogInServer : public TZCANALOGINSERVER_IMPL
+{
+public:
+  TzcAnalogInServer() {};
+  virtual ~TzcAnalogInServer();
+};
+
+class TzcAnalogInClient : public TZCANALOGINCLIENT_IMPL
+{
+public:
+  TzcAnalogInClient() {};
+  virtual ~TzcAnalogInClient();
 };
 
 #endif /* ZLIBRARY_H_ */

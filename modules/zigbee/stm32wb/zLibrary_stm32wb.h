@@ -116,6 +116,70 @@ private:
 #define TZCLEVELSERVER_IMPL TzcLevelServer_stm32wb
 #define TZCLEVELCLIENT_IMPL TzcLevelClient_stm32wb
 
+
+
+
+
+class TzcAnalogInServer_stm32wb : public TzcAnalogInServer_pre
+{
+public:
+  TzcAnalogInServer_stm32wb() {};
+  virtual ~TzcAnalogInServer_stm32wb() = 0;
+
+private:
+  virtual bool init() override;
+
+  static constexpr struct ZbZclAttrT attrList[] = {
+      //  attrId,                 ZclDataTypeT,                 ZclAttrFlagT,                                       customValSz,  callback,     range {min, max}, reportingInterval{min, max}
+      {   ZCL_ATTR_OutOfService,  ZCL_DATATYPE_BOOLEAN,         ZCL_ATTR_FLAG_REPORTABLE,                           0,            0,            {0x0, 0x01},      {0, 3600}},
+      {   ZCL_ATTR_PresentValue,  ZCL_DATATYPE_FLOATING_SINGLE, ZCL_ATTR_FLAG_REPORTABLE,                           0,            0,            {0x0, 0x0},       {0, 3600}},
+      {   ZCL_ATTR_StatusFlags,   ZCL_DATATYPE_BITMAP_8BIT,     ZCL_ATTR_FLAG_REPORTABLE,                           0,            0,            {0x0, 0x0f},       {0, 3600}}
+  };
+
+public:
+  inline void getAttrOutOfService(bool &aOOS) {
+    uint8_t val;
+    ZbZclAttrRead(clusterHandler, ZCL_ATTR_OutOfService, NULL, &val, sizeof(val), false);
+    aOOS = val > 0 ? true : false;
+  };
+  inline void setAttrOutOfService(bool aOOS) {
+    uint8_t val = aOOS ? 1 : 0;
+    ZbZclAttrWrite(clusterHandler, 0, ZCL_ATTR_OutOfService, &val, sizeof(val), ZCL_ATTR_WRITE_FLAG_FORCE);
+  };
+  inline void getAttrPresentValue(float &aVal) {
+    ZbZclAttrRead(clusterHandler, ZCL_ATTR_PresentValue, NULL, &aVal, sizeof(aVal), false);
+  };
+  inline void setAttrPresentValue(float aVal) {
+    ZbZclAttrWrite(clusterHandler, 0, ZCL_ATTR_PresentValue, (uint8_t*)&aVal, sizeof(aVal), ZCL_ATTR_WRITE_FLAG_FORCE);
+  };
+  inline void getAttrStatusFlags(bool &aAlarm, bool &aFault, bool &aOverriden, bool &aOutOfService) {
+    uint8_t val;
+    ZbZclAttrRead(clusterHandler, ZCL_ATTR_PresentValue, NULL, &val, sizeof(val), false);
+    aAlarm = val & 0x01 ? true : false;
+    aFault = val & 0x02 ? true : false;
+    aOverriden = val & 0x04 ? true : false;
+    aOutOfService = val & 0x08 ? true : false;
+  };
+  inline void setAttrStatusFlags(bool aAlarm, bool aFault, bool aOverriden, bool aOutOfService) {
+    uint8_t val = (aAlarm ? 0x01 : 0x00) | (aFault ? 0x02 : 0x00) | (aOverriden ? 0x04 : 0x00) | (aOutOfService ? 0x08 : 0x00);
+    ZbZclAttrWrite(clusterHandler, 0, ZCL_ATTR_StatusFlags, &val, sizeof(val), ZCL_ATTR_WRITE_FLAG_FORCE);
+  }
+};
+
+class TzcAnalogInClient_stm32wb : public TzcAnalogInClient_pre
+{
+public:
+  TzcAnalogInClient_stm32wb() {};
+  virtual ~TzcAnalogInClient_stm32wb() = 0;
+
+private:
+  virtual bool init() override;
+};
+
+#define TZCANALOGINSERVER_IMPL TzcAnalogInServer_stm32wb
+#define TZCANALOGINCLIENT_IMPL TzcAnalogInClient_stm32wb
+
+
 #endif /* ZLIBRARY_STM32WB_H_ */
 
 #endif /* ZLIBRARY_PRE_DONE */

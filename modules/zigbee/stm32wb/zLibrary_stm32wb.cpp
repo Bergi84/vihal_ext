@@ -546,3 +546,56 @@ bool TzcLevelClient_stm32wb::sendCmdStop(zAdr_t* aAdr)
   ZbZclClusterCommandReq(clusterHandler, &req, cmdRspCbHandler, (void*) this);
   return true;
 };
+
+TzcAnalogInServer_stm32wb::~TzcAnalogInServer_stm32wb()
+{
+
+
+}
+
+bool TzcAnalogInServer_stm32wb::init()
+{
+  clusterHandler = (ZbZclClusterT*) ZbZclClusterAlloc(getZHandler(), sizeof(ZbZclClusterT), (enum ZbZclClusterIdT) clId, endpoint->getEpId(), ZCL_DIRECTION_TO_SERVER);
+  if (clusterHandler == 0) {
+      return false;
+  }
+
+  clusterHandler->txOptions |= ZB_APSDE_DATAREQ_TXOPTIONS_SECURITY;
+
+  if ((zclStatusCode_t) ZbZclAttrAppendList(clusterHandler, attrList, ZCL_ATTR_LIST_LEN(attrList)) != ZCL_STATUS_SUCCESS)
+  {
+      ZbZclClusterFree(clusterHandler);
+      clusterHandler = 0;
+      return false;
+  }
+
+  ZbZclClusterSetCallbackArg(clusterHandler, this);
+
+  ZbZclClusterAttach(clusterHandler);
+
+  ZbZclClusterEndpointRegister(clusterHandler);
+  return true;
+}
+
+TzcAnalogInClient_stm32wb::~TzcAnalogInClient_stm32wb()
+{
+
+}
+
+bool TzcAnalogInClient_stm32wb::init()
+{
+  clusterHandler = (ZbZclClusterT*) ZbZclClusterAlloc(getZHandler(), sizeof(ZbZclClusterT), (enum ZbZclClusterIdT) clId, endpoint->getEpId(), ZCL_DIRECTION_TO_CLIENT);
+  if (clusterHandler == 0) {
+      return false;
+  }
+
+  clusterHandler->txOptions |= (uint16_t)(ZB_APSDE_DATAREQ_TXOPTIONS_SECURITY | ZB_APSDE_DATAREQ_TXOPTIONS_ACK | ZB_APSDE_DATAREQ_TXOPTIONS_FRAG);
+
+  ZbZclClusterSetCallbackArg(clusterHandler, this);
+
+  ZbZclClusterAttach(clusterHandler);
+
+  ZbZclClusterEndpointRegister(clusterHandler);
+
+  return true;
+}
